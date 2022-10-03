@@ -369,7 +369,7 @@ template<typename idx_t>
 class PoolBase
 {
 public:
-	using idx_t          = idx_t;
+	using idx_type       = idx_t;
 	using idx_vec        = std::vector<idx_t>
 	using container_t    = idx_vec;
 	using iterator       = PoolIterator<container_t>;
@@ -384,7 +384,7 @@ public:
 	     * Attempting to get the entity that doesn't belong to the
 	     * Pool results in undefined behavior.
 	*/
-	idx_t entity(const idx_t& idx)
+	idx_type entity(const idx_type& idx)
 	{
 		return m_enttDense[spGet(idx)];
 	}
@@ -394,7 +394,7 @@ public:
 		return m_enttDense.empty();
 	}
 
-	bool has(const idx_t& idx) const
+	bool has(const idx_type& idx) const
 	{
 		return (idx < m_sparse.size() && spGet(idx) != EntityId::null);
 	}
@@ -438,19 +438,19 @@ protected:
 /*
 toDO Look to this...
 */
-	idx_t& spGet(const idx_t& enttIdx) const 
+	idx_type& spGet(const idx_type& enttIdx) const 
 	{
 		return m_sparse[page(enttIdx)][offset(enttIdx)];
 	}
 
 private:
 
-	idx_t page(const idx_t& enttIdx)
+	idx_type page(const idx_type& enttIdx)
 	{
 		return (enttIdx >> PoolBase::spEnttShift);
 	}
 
-	idx_t offset(const idx_t& enttIdx)
+	idx_type offset(const idx_type& enttIdx)
 	{
 		return (enttIdx & (PoolBase::sparsePage - 1));
 	}
@@ -468,7 +468,7 @@ public:
 public:
 	//--Constructor
 	Pool() = default;
-	Pool(idx_t capacity)
+	Pool(idx_type capacity)
 	{
 		reserve(capacity);
 	}
@@ -487,17 +487,17 @@ public:
 	     * Attempting to get the index of an entity that doesn't belong to the
 	     * Pool results in undefined behavior.
 	*/
-	value_t& get(const idx_t& idx)
+	value_t& get(const idx_type& idx)
 	{
 		return m_dataDense[spGet(idx)];
 	}
 
-	const value_t& get(const idx_t& idx) const
+	const value_t& get(const idx_type& idx) const
 	{
 		return m_dataDense[spGet(idx)];
 	}
 
-	void reserve(idx_t capacity)
+	void reserve(idx_type capacity)
 	{
 
 		m_dataDense.reserve(capacity);
@@ -529,7 +529,7 @@ public:
 
 	//-
 	template<typename ...argtyps>
-	void insert(const idx_t& idx, argtyps&& ...args)
+	void insert(const idx_type& idx, argtyps&& ...args)
 	{
 		assert(!has(idx) && "Id already exists");
 
@@ -543,7 +543,7 @@ public:
 		
 	}
 
-	void erase(const idx_t& idx)
+	void erase(const idx_type& idx)
 	{
 		assert(has(idx) && "Id doesn't exist");
 
