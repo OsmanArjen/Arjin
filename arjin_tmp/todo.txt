@@ -1,0 +1,16 @@
+## TODO
+-Make Hitbox system
+
+
+## ON PROGRESS
+-Make Animation system
+
+
+
+## DONE
+-Make Entity system
+-Make Movement system
+
+## FIX
+-fix that you cant play another animation if last ends at least one time
+-like: if(!m_lastAnim.isDone()){...}

@@ -1,0 +1,3 @@
+//std::apply([](const auto... idx){(applyEach(fn, idx), ...);}, m_vpools); // buna bak
+
+

@@ -1,0 +1,7 @@
+{
+    "video_mode_idx": 0,
+    "fullscreen": true,
+    "antialiasing_level": 0,
+    "framerate_limit": 60,
+    "vertical_sync": true
+}
