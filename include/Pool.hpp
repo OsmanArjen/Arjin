@@ -379,15 +379,33 @@ public:
 	static constexpr unsigned int sparsePage{2 ** spEnttShift};
 
 public:
+
+	PoolBase() = default;
+	PoolBase(PoolBase&& other)
+	: m_sparse{std::move(other.m_sparse)}
+	, m_enttDense{std::move(other.m_enttDense)} {}
+
+	virtual ~PoolBase()
+	{
+		releasePages();
+	}
+
+	idx_type entity(const idx_type& idx)
+	{
+		assert(idx < m_enttDense.size() && "Index is out of bounds");
+		return m_enttDense[idx];
+	}
+
 	/**
 	     * @warning
 	     * Attempting to get the entity that doesn't belong to the
 	     * Pool results in undefined behavior.
 	*/
-	idx_type entity(const idx_type& idx)
+	idx_type index(const idx_type& idx)
 	{
-		return m_enttDense[spGet(idx)];
+		return sparseIdx(idx);
 	}
+
 
 	bool empty() const
 	{
@@ -396,7 +414,7 @@ public:
 
 	bool has(const idx_type& idx) const
 	{
-		return (idx < m_sparse.size() && spGet(idx) != EntityId::null);
+		return (idx < (m_sparse.size() * PoolBase::sparsePage) && sparseIdx(idx) != EntityId::nullidx);
 	}
 
 	size_t size() const
@@ -435,15 +453,24 @@ protected:
 	std::vector<idx_vec*> m_sparse;
 	container_t           m_enttDense;
 
-/*
-toDO Look to this...
-*/
-	idx_type& spGet(const idx_type& enttIdx) const 
+	// Todo: will allocate new pages for sparse if needed and will return things to use the sparse set im tired do this
+	idx_type& sparseEnsure(const idx_type& enttIdx)
+	{
+		const auto enttpage{page(enttIdx)};
+
+		if(!(enttpage < m_sparse.size()))
+		{
+			m_sparse.resize((enttpage + 1), nullptr);
+			m_sparse[enttpage] = {new idx_vec{PoolBase::sparsePage, EntityId::nullidx}};
+		}
+
+		return sparseIdx(enttIdx);
+	}
+
+	idx_type& sparseIdx(const idx_type& enttIdx) const 
 	{
 		return m_sparse[page(enttIdx)][offset(enttIdx)];
 	}
-
-private:
 
 	idx_type page(const idx_type& enttIdx)
 	{
@@ -454,8 +481,21 @@ private:
 	{
 		return (enttIdx & (PoolBase::sparsePage - 1));
 	}
+	
+private:
 
+	void releasePages()
+	{
+		for(auto&& pageptr : m_sparse)
+		{
+			if(pageptr != nullptr)
+			{
+				delete pageptr;
+			}
+		}
+	}
 };
+
 
 template<typename value_t, typename idx_t = EntityId::idx_t>
 class Pool : public PoolBase<idx_t>
@@ -489,20 +529,20 @@ public:
 	*/
 	value_t& get(const idx_type& idx)
 	{
-		return m_dataDense[spGet(idx)];
+		return m_dataDense[sparseIdx(idx)];
 	}
 
 	const value_t& get(const idx_type& idx) const
 	{
-		return m_dataDense[spGet(idx)];
+		return m_dataDense[sparseIdx(idx)];
 	}
 
 	void reserve(idx_type capacity)
 	{
 
 		m_dataDense.reserve(capacity);
-		//m_enttDense.reserve(capacity); TODO: IMPLEMENT PAGING TO IT 
-		//m_sparse.resize(capacity, EntityId::null); we might not need this but look incase
+		m_enttDense.reserve(capacity); //TODO: IMPLEMENT PAGING TO IT 
+		//m_sparse.resize(capacity, EntityId::nullidx); we might not need this but look incase
 	}
 
 	iterator begin()
@@ -529,33 +569,33 @@ public:
 
 	//-
 	template<typename ...argtyps>
-	void insert(const idx_type& idx, argtyps&& ...args)
+	void insert(const idx_type& entt, argtyps&& ...args)
 	{
-		assert(!has(idx) && "Id already exists");
+		assert(!has(entt) && "Id already exists");
 
-		auto  dnidx  = m_enttDense.size();
-		auto& spentt = spGet(idx);
+		auto  denseIdx = m_enttDense.size();
+		auto& spentt   = sparseEnsure(entt);
 
-		m_enttDense.emplace_back(idx);
+		m_enttDense.emplace_back(entt);
 		m_dataDense.emplace_back(std::forward<argtyps>(args)...);
-		spentt = dnidx;
+		spentt = denseIdx;
 		
 		
 	}
 
-	void erase(const idx_type& idx)
+	void erase(const idx_type& entt)
 	{
-		assert(has(idx) && "Id doesn't exist");
+		assert(has(entt) && "Id doesn't exist");
 
 		const auto last = m_enttDense.back();
-		auto& splast = spGet(last);
-		auto& spentt = spGet(idx);
+		auto& splast = sparseIdx(last);
+		auto& spentt = sparseIdx(entt);
 
-		std::swap(m_enttDense.back(), m_enttDense[spentt]);
+		std::swap(m_enttDense.back(),  m_enttDense[spentt]);
 		std::swap(m_dataDense.back(),  m_dataDense[spentt]);
 
 		splast  = spentt;
-		spentt  = EntityId::null;
+		spentt  = EntityId::nullidx;
 
 		m_enttDense.pop_back();
 		m_dataDense.pop_back();
