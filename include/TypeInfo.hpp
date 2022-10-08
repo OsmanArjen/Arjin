@@ -11,7 +11,7 @@ struct EntityId
   idx_t  index;
   vers_t version;
 
-  inline static const idx_t null{std::numeric_limits<idx_t>::max()};
+  inline static const idx_t nullidx{std::numeric_limits<idx_t>::max()};
 };
 
 //-Component

@@ -25,6 +25,39 @@ maybe EnttIterator and DataIterator(or CompIterator)
 */
 
 // todo: generally get the things together and make it work may god be with you, myself,  mashallah to you be emanet to god amin
+
+
+template<typename idx_type>
+struct PoolTraits
+{
+	static constexpr unsigned int sparseEnttShift{12};
+	static constexpr unsigned int denseEnttShift{12};
+
+	static constexpr unsigned int sparsePageSize{2 ** sparseEnttShift};
+	static constexpr unsigned int densePageSize{2 ** denseEnttShift};
+
+	idx_type sparsePage(const idx_type& enttIdx)
+	{
+		return (enttIdx >> PoolTraits::sparseEnttShift);
+	}
+
+	idx_type sparseOffset(const idx_type& enttIdx)
+	{
+		return (enttIdx & (PoolTraits::sparsePageSize - 1));
+	}
+
+	idx_type densePage(const idx_type& enttIdx)
+	{
+		return (enttIdx >> PoolTraits::denseEnttShift);
+	}
+
+	idx_type denseOffset(const idx_type& enttIdx)
+	{
+		return (enttIdx & (PoolTraits::densePageSize - 1));
+	}
+
+};
+
 //-EnttIterator
 template<typename pooldense>
 class EnttIterator
@@ -374,9 +407,8 @@ public:
 	using container_t    = idx_vec;
 	using iterator       = PoolIterator<container_t>;
 	using const_iterator = PoolIterator<const container_t>;
+	using traits         = PoolTraits<idx_t>;
 
-	static constexpr unsigned int spEnttShift{12};
-	static constexpr unsigned int sparsePage{2 ** spEnttShift};
 
 public:
 
@@ -414,7 +446,7 @@ public:
 
 	bool has(const idx_type& idx) const
 	{
-		return (idx < (m_sparse.size() * PoolBase::sparsePage) && sparseIdx(idx) != EntityId::nullidx);
+		return (idx < (m_sparse.size() * traits::sparsePageSize) && sparseIdx(idx) != EntityId::nullidx);
 	}
 
 	size_t size() const
@@ -456,32 +488,23 @@ protected:
 	// Todo: will allocate new pages for sparse if needed and will return things to use the sparse set im tired do this
 	idx_type& sparseEnsure(const idx_type& enttIdx)
 	{
-		const auto enttpage{page(enttIdx)};
+		const auto enttpage{traits::sparsePage(enttIdx)};
 
 		if(!(enttpage < m_sparse.size()))
 		{
 			m_sparse.resize((enttpage + 1), nullptr);
-			m_sparse[enttpage] = {new idx_vec{PoolBase::sparsePage, EntityId::nullidx}};
+			m_sparse[enttpage] = {new idx_vec{traits::sparsePageSize, EntityId::nullidx}};
 		}
 
-		return sparseIdx(enttIdx);
+		return m_sparse[enttpage][traits::sparseOffset(enttIdx)];
 	}
 
 	idx_type& sparseIdx(const idx_type& enttIdx) const 
 	{
-		return m_sparse[page(enttIdx)][offset(enttIdx)];
+		return m_sparse[traits::sparsePage(enttIdx)][traits::sparseOffset(enttIdx)];
 	}
 
-	idx_type page(const idx_type& enttIdx)
-	{
-		return (enttIdx >> PoolBase::spEnttShift);
-	}
 
-	idx_type offset(const idx_type& enttIdx)
-	{
-		return (enttIdx & (PoolBase::sparsePage - 1));
-	}
-	
 private:
 
 	void releasePages()
@@ -527,14 +550,14 @@ public:
 	     * Attempting to get the index of an entity that doesn't belong to the
 	     * Pool results in undefined behavior.
 	*/
-	value_t& get(const idx_type& idx)
+	value_t& get(const idx_type& entt)
 	{
-		return m_dataDense[sparseIdx(idx)];
+		return m_dataDense[m_sparse[traits::sparsePage(entt)][traits::sparseOffset(entt)]];
 	}
 
-	const value_t& get(const idx_type& idx) const
+	const value_t& get(const idx_type& entt) const
 	{
-		return m_dataDense[sparseIdx(idx)];
+		return m_dataDense[m_sparse[traits::sparsePage(entt)][traits::sparseOffset(entt)]];
 	}
 
 	void reserve(idx_type capacity)
@@ -588,8 +611,8 @@ public:
 		assert(has(entt) && "Id doesn't exist");
 
 		const auto last = m_enttDense.back();
-		auto& splast = sparseIdx(last);
-		auto& spentt = sparseIdx(entt);
+		auto& splast = m_sparse[traits::sparsePage(last)][traits::sparseOffset(last)];
+		auto& spentt = m_sparse[traits::sparsePage(entt)][traits::sparseOffset(entt)];
 
 		std::swap(m_enttDense.back(),  m_enttDense[spentt]);
 		std::swap(m_dataDense.back(),  m_dataDense[spentt]);
