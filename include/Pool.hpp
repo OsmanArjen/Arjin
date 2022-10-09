@@ -177,21 +177,18 @@ public:
 	{
 	    return !(other.m_curr < m_curr);
 	}
-	
-
 private:
 	pooldense*       m_dense;
 	difference_type  m_curr;
-
 };
 
 //-CompIterator
-template<typename pooldense>
+template<typename pooldense, typename diff_type>
 class CompIterator
 {
 public:
 	using value_type        = typename pooldense::value_type;
-	using difference_type   = typename pooldense::difference_type;
+	using difference_type   = diff_type;
 	using iterator_category = std::random_access_iterator_tag;
 	using pointer           = value_type*;
 	using reference         = value_type&;
@@ -256,12 +253,13 @@ public:
 
 	constexpr reference operator[](const difference_type idx)
 	{
-		return (*m_dense)[m_curr + idx];
+		const auto pos = (m_curr + idx);
+		return (*m_dense)[PoolTraits::densePage(pos)][PoolTraits::denseOffset(pos)];
 	}
 
 	constexpr reference operator*()
 	{
-		return (*m_dense)[m_curr];
+		return (*m_dense)[PoolTraits::densePage(m_curr)][PoolTraits::denseOffset(m_curr)];
 	}
 
 	constexpr pointer   operator->()
@@ -304,12 +302,9 @@ public:
 	{
 	    return !(other.m_curr < m_curr);
 	}
-	
-
 private:
 	pooldense*       m_dense;
 	difference_type  m_curr;
-
 };
 
 
@@ -435,7 +430,7 @@ public:
 	*/
 	idx_type index(const idx_type& idx)
 	{
-		return sparseIdx(idx);
+		return m_sparse[traits::sparsePage(idx)][traits::sparseOffset(idx)];
 	}
 
 
@@ -446,7 +441,8 @@ public:
 
 	bool has(const idx_type& idx) const
 	{
-		return (idx < (m_sparse.size() * traits::sparsePageSize) && sparseIdx(idx) != EntityId::nullidx);
+		auto& idxref = m_sparse[traits::sparsePage(idx)][traits::sparseOffset(idx)]; 
+		return (idx < (m_sparse.size() * traits::sparsePageSize) && idxref != EntityId::nullidx);
 	}
 
 	size_t size() const
@@ -485,25 +481,17 @@ protected:
 	std::vector<idx_vec*> m_sparse;
 	container_t           m_enttDense;
 
-	// Todo: will allocate new pages for sparse if needed and will return things to use the sparse set im tired do this
-	idx_type& sparseEnsure(const idx_type& enttIdx)
+	idx_type& ensureSparse(const idx_type& enttIdx)
 	{
 		const auto enttpage{traits::sparsePage(enttIdx)};
 
 		if(!(enttpage < m_sparse.size()))
 		{
-			m_sparse.resize((enttpage + 1), nullptr);
-			m_sparse[enttpage] = {new idx_vec{traits::sparsePageSize, EntityId::nullidx}};
+			m_sparse.resize((enttpage + 1), {new idx_vec{traits::sparsePageSize, EntityId::nullidx}});
 		}
 
 		return m_sparse[enttpage][traits::sparseOffset(enttIdx)];
 	}
-
-	idx_type& sparseIdx(const idx_type& enttIdx) const 
-	{
-		return m_sparse[traits::sparsePage(enttIdx)][traits::sparseOffset(enttIdx)];
-	}
-
 
 private:
 
@@ -514,6 +502,7 @@ private:
 			if(pageptr != nullptr)
 			{
 				delete pageptr;
+				pageptr = nullptr;
 			}
 		}
 	}
@@ -562,10 +551,11 @@ public:
 
 	void reserve(idx_type capacity)
 	{
-
-		m_dataDense.reserve(capacity);
-		m_enttDense.reserve(capacity); //TODO: IMPLEMENT PAGING TO IT 
-		//m_sparse.resize(capacity, EntityId::nullidx); we might not need this but look incase
+		if(capacity != 0u)
+		{
+			m_dataDense.reserve(capacity);
+			m_enttDense.reserve(capacity);
+		}
 	}
 
 	iterator begin()
@@ -575,7 +565,7 @@ public:
 
 	iterator end()
 	{
-		const auto endpos = static_cast<typename iterator::difference_type>(m_dataDense.size()); 
+		const auto endpos = static_cast<typename iterator::difference_type>(m_enttDense.size()); 
 		return {&m_dataDense, endpos};
 	}
 
@@ -586,7 +576,7 @@ public:
 
 	const_iterator cend()
 	{
-		const auto endpos = static_cast<typename iterator::difference_type>(m_dataDense.size()); 
+		const auto endpos = static_cast<typename iterator::difference_type>(m_enttDense.size()); 
 		return {&m_dataDense, endpos};
 	}
 
@@ -597,11 +587,11 @@ public:
 		assert(!has(entt) && "Id already exists");
 
 		auto  denseIdx = m_enttDense.size();
-		auto& spentt   = sparseEnsure(entt);
+		auto& enttRef   = ensureSparse(entt);
 
 		m_enttDense.emplace_back(entt);
 		m_dataDense.emplace_back(std::forward<argtyps>(args)...);
-		spentt = denseIdx;
+		enttRef = denseIdx;
 		
 		
 	}
@@ -611,14 +601,14 @@ public:
 		assert(has(entt) && "Id doesn't exist");
 
 		const auto last = m_enttDense.back();
-		auto& splast = m_sparse[traits::sparsePage(last)][traits::sparseOffset(last)];
-		auto& spentt = m_sparse[traits::sparsePage(entt)][traits::sparseOffset(entt)];
+		auto& lastRef = m_sparse[traits::sparsePage(last)][traits::sparseOffset(last)];
+		auto& enttRef = m_sparse[traits::sparsePage(entt)][traits::sparseOffset(entt)];
 
-		std::swap(m_enttDense.back(),  m_enttDense[spentt]);
-		std::swap(m_dataDense.back(),  m_dataDense[spentt]);
+		std::swap(m_enttDense.back(),  m_enttDense[enttRef]);
+		std::swap(m_dataDense.back(),  m_dataDense[enttRef]);
 
-		splast  = spentt;
-		spentt  = EntityId::nullidx;
+		lastRef  = enttRef;
+		enttRef  = EntityId::nullidx;
 
 		m_enttDense.pop_back();
 		m_dataDense.pop_back();
