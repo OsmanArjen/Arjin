@@ -9,23 +9,7 @@
 
 // TODO: FIX VIEW CLASS ACCORDING TO NEW POOLBASE STRUCTURE
 
-/*
- * Create a base iterator named PoolIterator and make it abstract then derive it from enttiterator and compiterator 
- * with pure virtual functions+ pre defined functions
- * and define enttiterator with compiterator
- */
-
-/* 
-
-TODO: IMPLEMENT PAGING AND FIX THIS
-
-ALSO FIND A WAY TO IMPLEMENT PAGING TO COMPONENT DENSE TOO
-
-maybe EnttIterator and DataIterator(or CompIterator)
-*/
-
-// todo: generally get the things together and make it work may god be with you, myself,  mashallah to you be emanet to god amin
-
+// TODO: FIND OUT HOW ITERATORS CAN BE CONSTEXPR
 
 template<typename idx_type>
 struct PoolTraits
@@ -72,42 +56,41 @@ public:
 	constexpr EnttIterator() = default;
 	constexpr EnttIterator(pooldense* ref, difference_type idx)
 	: m_dense{ref}
-	, m_curr{idx} {}
+	, m_index{idx} {}
 
 	constexpr EnttIterator(const EnttIterator<pooldense>& other)
-	: EnttIterator{other.m_dense, other.m_curr} {}
-
+	: EnttIterator{other.m_dense, other.m_index} {}
 
 
 	constexpr EnttIterator& operator++()
 	{
-		m_curr++;
+		m_index--;
 		return *this;
 	}
 
 	constexpr EnttIterator  operator++(int)
 	{
 		auto cpy = *this;
-		++m_curr;
+		--m_index;
 		return cpy;
 	}
 
 	constexpr EnttIterator& operator--()
 	{
-		m_curr--;
+		m_index++;
 		return *this;
 	}
 
 	constexpr EnttIterator  operator--(int)
 	{
 		auto cpy = *this;
-		--m_curr;
+		++m_index;
 		return cpy;
 	}
 
     constexpr EnttIterator& operator+=(const difference_type value) noexcept
     {
-        m_curr += value;
+        m_index -= value;
         return *this;
     }
 
@@ -127,61 +110,62 @@ public:
         return (*this + -value);
     }
 
-	constexpr reference operator[](const difference_type idx)
+	constexpr reference operator[](const difference_type value)
 	{
-		return (*m_dense)[m_curr + idx];
+		return m_dense->data()[m_index - value];
 	}
 
 	constexpr reference operator*()
 	{
-		return (*m_dense)[m_curr];
+		return m_dense->data()[m_index];
 	}
 
 	constexpr pointer   operator->()
 	{
-		return &(operator*());
-
+		return m_dense->data() + m_index;
 	}
 
 	constexpr bool operator==(const EnttIterator& other) noexcept
 	{
-	    return m_curr == other.m_curr;
+	    return m_index == other.m_index;
 	}
 	
 
 	constexpr bool operator!=(const EnttIterator& other) noexcept
 	{
-	    return !(m_curr == other.m_curr);
+	    return !(m_index == other.m_index);
 	}
 	
 
 	constexpr bool operator<(const EnttIterator& other) noexcept
 	{
-	    return m_curr < other.m_curr;
+	    return m_index > other.m_index;
 	}
 	
 
 	constexpr bool operator>(const EnttIterator& other) noexcept
 	{
-	    return m_curr > other.m_curr;
+	    return m_index < other.m_index;
 	}
 	
 
 	constexpr bool operator<=(const EnttIterator& other) noexcept
 	{
-	    return !(other.m_curr > m_curr);
+	    return !(other.m_index > m_index);
 	}
 	
 
 	constexpr bool operator>=(const EnttIterator& other) noexcept
 	{
-	    return !(other.m_curr < m_curr);
+	    return !(other.m_index < m_index);
 	}
 private:
-	pooldense*       m_dense;
-	difference_type  m_curr;
+	const pooldense* m_dense;
+	difference_type  m_index;
 };
 
+
+// todo implement reverse iterator version to this 
 //-CompIterator
 template<typename pooldense, typename diff_type>
 class CompIterator
@@ -196,42 +180,42 @@ public:
 	constexpr CompIterator() = default;
 	constexpr CompIterator(pooldense* ref, difference_type idx)
 	: m_dense{ref}
-	, m_curr{idx} {}
+	, m_index{idx} {}
 
 	constexpr CompIterator(const CompIterator<pooldense>& other)
-	: CompIterator{other.m_dense, other.m_curr} {}
+	: CompIterator{other.m_dense, other.m_index} {}
 
 
 
 	constexpr CompIterator& operator++()
 	{
-		m_curr++;
+		m_index--;
 		return *this;
 	}
 
 	constexpr CompIterator  operator++(int)
 	{
 		auto cpy = *this;
-		++m_curr;
+		--m_index;
 		return cpy;
 	}
 
 	constexpr CompIterator& operator--()
 	{
-		m_curr--;
+		m_index++;
 		return *this;
 	}
 
 	constexpr CompIterator  operator--(int)
 	{
 		auto cpy = *this;
-		--m_curr;
+		++m_index;
 		return cpy;
 	}
 
     constexpr CompIterator& operator+=(const difference_type value) noexcept
     {
-        m_curr += value;
+        m_index -= value;
         return *this;
     }
 
@@ -253,13 +237,13 @@ public:
 
 	constexpr reference operator[](const difference_type idx)
 	{
-		const auto pos = (m_curr + idx);
-		return (*m_dense)[PoolTraits::densePage(pos)][PoolTraits::denseOffset(pos)];
+		const auto pos = (m_index - idx);
+		return m_dense->data()[PoolTraits::densePage(pos)][PoolTraits::denseOffset(pos)];
 	}
 
 	constexpr reference operator*()
 	{
-		return (*m_dense)[PoolTraits::densePage(m_curr)][PoolTraits::denseOffset(m_curr)];
+		return m_dense->data()[PoolTraits::densePage(m_index)][PoolTraits::denseOffset(m_index)];
 	}
 
 	constexpr pointer   operator->()
@@ -270,41 +254,41 @@ public:
 
 	constexpr bool operator==(const CompIterator& other) noexcept
 	{
-	    return m_curr == other.m_curr;
+	    return m_index == other.m_index;
 	}
 	
 
 	constexpr bool operator!=(const CompIterator& other) noexcept
 	{
-	    return !(m_curr == other.m_curr);
+	    return !(m_index == other.m_index);
 	}
 	
 
 	constexpr bool operator<(const CompIterator& other) noexcept
 	{
-	    return m_curr < other.m_curr;
+	    return m_index > other.m_index;
 	}
 	
 
 	constexpr bool operator>(const CompIterator& other) noexcept
 	{
-	    return m_curr > other.m_curr;
+	    return m_index < other.m_index;
 	}
 	
 
 	constexpr bool operator<=(const CompIterator& other) noexcept
 	{
-	    return !(other.m_curr > m_curr);
+	    return !(other.m_index > m_index);
 	}
 	
 
 	constexpr bool operator>=(const CompIterator& other) noexcept
 	{
-	    return !(other.m_curr < m_curr);
+	    return !(other.m_index < m_index);
 	}
 private:
 	pooldense*       m_dense;
-	difference_type  m_curr;
+	difference_type  m_index;
 };
 
 
@@ -455,26 +439,26 @@ public:
 		return m_sparse.capacity();
 	}
 
+
 	iterator begin()
 	{
-		return {&m_enttDense, {}};
+		const auto beginpos = static_cast<typename iterator::difference_type>({m_enttDense.size() - 1}); 
+		return {&m_enttDense, beginpos};
 	}
 
 	iterator end()
 	{
-		const auto endpos = static_cast<typename iterator::difference_type>(m_enttDense.size()); 
-		return {&m_enttDense, endpos};
+		return {&m_enttDense, -1};
 	}
 
 	const_iterator cbegin()
 	{
-		return {&m_enttDense, {}};
+		return begin();
 	}
 
 	const_iterator cend()
 	{
-		const auto endpos = static_cast<typename iterator::difference_type>(m_enttDense.size()); 
-		return {&m_enttDense, endpos};
+		return end();
 	}
 
 protected:
