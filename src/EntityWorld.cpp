@@ -1,108 +1,117 @@
 #include "EntityWorld.hpp"
 
 //-EntityRange
-EntityRange::EntityRange(EntityId* start, size_type size)
-	: m_range(start), m_size(size) {}
+EntityRange::EntityRange(iterator begin, size_type size)
+	: m_begin(begin), m_size(size) {}
 
-const EntityId& EntityRange::at(size_type idx)
+iterator EntityRange::begin() const
 {
-	assert(idx < m_size);
-	return m_range[idx]; 
+    return m_begin;
+}
+
+iterator EntityRange::end() const
+{
+    return (m_begin + m_size);
+}
+
+const_iterator EntityRange::cbegin() const 
+{
+    return begin();
+}
+
+const_iterator EntityRange::cend() const 
+{
+    return end();
+}
+
+const EntityId& EntityRange::operator[](size_type idx) const 
+{
+	assert((idx < m_size));
+	return (m_begin + idx)*; 
 }
 
 
 //-EntityWorld
-EntityWorld::EntityWorld(const std::size_t npool)
-	: m_compPools{npool}
-{
-
-}
-
-EntityId EntityWorld::newId(const EntityId::idx_t denseidx)
-{
-    EntityId enttId{m_enttPool.nextIdx++, 0};
-    m_enttPool.sparse[enttId.index] = denseIdx;
-    m_enttPool.dense[denseIdx]      = enttId;
-
-    return enttId;
-}
+EntityWorld::EntityWorld(size_type npool)
+	: m_compPools{npool} {}
 
 EntityId EntityWorld::create()
 {
-    EntityId::idx_t deadLine = m_enttPool.aliveCount++;
-    if(m_enttPool.aliveCount < m_enttPool.dense.size())
+    auto deadIdx = m_aliveCount++;
+    if(deadIdx < m_entityDense.size())
     {
-        return m_enttPool.dense[deadLine];
+        return m_entityDense[deadIdx];
     }
     else
     {
-        return newId(deadLine);
+        return newEntity();
     }
 
 }
 
-EntityRange EntityWorld::bulkCreate(const EntityId::idx_t newcount)
+EntityRange EntityWorld::bulkCreate(index_type newcount)
 {
-    int32_t entityCount = m_enttPool.dense.size();
-    int32_t aliveCount  = m_enttPool.aliveCount;
-    
-    int32_t toCreate    = newcount - (entityCount - aliveCount);
-    m_enttPool.aliveCount += newcount;
+    if(newcount == 0u) return {m_entityDense.begin(), 0u};
+    auto entityCount = m_entityDense.size();
+    auto currAlive   = m_aliveCount;
+    auto toCreate    = newcount - (entityCount - currAlive);
 
-    if(toCreate > 0)
+    m_aliveCount += newcount;
+	for (size_type i = 0u; i < toCreate; ++i)
     {
-    	m_enttPool.sparse.resize(entityCount + toCreate);
-    	m_enttPool.dense.resize(entityCount  + toCreate);
-
-	    for (int32_t i = 0; i < toCreate; ++i)
-    	{
-    		newId(aliveCount + i);
-    	}
+        newEntity();
     } 
 
-    return {&m_enttPool.dense.at(aliveCount), newcount}; // return pointer for the first created entity 
-    
+    return {m_entityDense.begin() + currAlive, newcount}; 
 }
 
-void EntityWorld::reserve(const std:uint32_t count)
+EntityId EntityWorld::newEntity()
 {
-	m_enttPool.sparse.reserve(count);
-	m_enttPool.dense.reserve(count);
+    EntityId newId{m_entityDense.size(), 0u};
+    
+    m_entitySparse.emplace_back(newId.index);
+    m_entityDense.emplace_back(newId);
+
+    return newId;
 }
+
+void EntityWorld::reserve(size_type value)
+{
+    m_entitySparse.reserve(value);
+    m_entityDense.reserve(value);
+}
+
 
 void EntityWorld::release(const EntityId& enttId)
 {
-    if(isAlive(enttId))
-    {
-        
-        EntityId::idx_t denseIdx = m_enttPool.sparse[enttId.index];
-        EntityId::idx_t count    = m_enttPool.aliveCount;
-        
-        m_enttPool.dense[denseIdx].version++;
+    assert(isValid(enttId) && "Invalid entity");
 
-        if (denseIdx == (count - 1))
-        {
-            m_enttPool.aliveCount--;
-        }
-        else if (denseIdx < count)
-        {
-            const auto last = m_dense[count - 1];
-            std::swap(m_dense[count - 1],   m_dense[denseIdx]);
-            std::swap(m_sparse[last.index], m_sparse[enttId.index]);
-            m_enttPool.aliveCount--;
-        }
+    auto denseIdx  = m_entitySparse[enttId.index];
+    auto currAlive = m_aliveCount;
+    m_entityDense[denseIdx].version++;
+
+    if (denseIdx == (currAlive - 1u))
+    {
+        m_aliveCount--;
+    }
+    else if (denseIdx < currAlive)
+    {
+        auto last = m_entityDense[currAlive - 1u];
+        std::swap(m_entityDense[currAlive - 1u],   m_entityDense[denseIdx]);
+        std::swap(m_entitySparse[last.index],      m_entitySparse[enttId.index]);
+        m_aliveCount--;
     }
 }
 
-void EntityWorld::isAlive(const EntityId& enttId)
+void EntityWorld::isValid(const EntityId& enttId)
 {
-    if (enttId.index < 0 || enttId.index >= m_enttPool.sparse.size())
+    if ((enttId.index < 0u) || (enttId.index >= m_entitySparse.size()))
         return false;
 
-    EntityId::idx_t denseIdx = m_enttPool.sparse[enttId.index];
-    EntityId        poolId   = m_enttPool.dense[denseIdx];
-
-    return (enttId == poolId); 
+    auto sparseIdx = m_entitySparse[enttId.index];
+    auto checkId   = m_entityDense[sparseIdx];
+ 
+    return (enttId == checkId); 
 
 }
 

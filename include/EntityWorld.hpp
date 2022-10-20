@@ -9,12 +9,23 @@
 struct EntityRange
 {
 public:
-	using size_type = std::uint32_t;
+	using size_type       = EntityId::index_t;
+	using iterator        = std::vector<EntityId>::const_iterator;
+	using const_iterator  = std::vector<EntityId>::const_iterator;
+public:
 	EntityRange() = default;
-	EntityRange(EntityId* start, size_type size);
-	const EntityId& at(size_type idx);
+	EntityRange(iterator begin, size_type size);
+
+	iterator begin() const;
+	iterator end()   const;
+
+	const_iterator cbegin() const;
+	const_iterator cend()   const;
+
+	const EntityId& operator[](size_type idx) const;
+
 private:
-	EntityId* m_range;
+	iterator  m_begin;
 	size_type m_size;
 };
 
@@ -22,20 +33,22 @@ private:
 
 class EntityWorld
 {
-
+public:
+	using size_type   = std::size_t;
+	using index_type  = EntityId::index_t;
 public:
 	//--Constructor/Destructor
 	EntityWorld() = default;
-	EntityWorld(const std::size_t npool);
+	EntityWorld(size_type npool);
 
 	//--Functions
 	//-Entity functions
 	EntityId     create();
-	EntityRange  bulkCreate(const EntityId::idx_t newcount);
+	EntityRange  bulkCreate(EntityId::index_t newcount);
 
-	void         reserve(const EntityId::idx_t count);
+	void         reserve(size_type count);
 	void         release(const EntityId& enttId);
-	void         isAlive(const EntityId& enttId); 
+	void         isValid(const EntityId& enttId); 
 
 	//-Component functions
 	template<typename comptype, typename... argtyps>
@@ -49,37 +62,28 @@ public:
 
 
 private:
-	using vec = std::vector;
-	using pstorage_t = Pool<std::unique_ptr<PoolBase<EntityId::idx_t>>>;
+	using vec      = std::vector;
+	using pool_ptr = std::unique_ptr<PoolBase<EntityId::index_t>>;
+	//-
+	vec<EntityId::index_t> m_entitySparse;	 
+	vec<EntityId>          m_entityDense;	 
+	EntityId::index_t      m_aliveCount;
 
+	Pool<pool_ptr>         m_compPools;
 
 	//-
-	struct
-	{
-		EntityId::idx_t nextIdx;
-		EntityId::idx_t aliveCount;
-
-		vec<EntityId::idx_t>    sparse;
-		vec<EntityId> dense; 
-
-	}	m_enttPool;	 
-
-	// -
-	pstorage_t m_compPools;
-
-	//-
-	EntityId  newId(const EntityId::idx_t denseidx);
+	EntityId newEntity();
 	
 	template<typename comptype>
-	void ensure();
+	ComponentId compTypeEnsure();
 
 }; 
 
 //-Template functions
 template<typename comptype>
-CompTypeId EntityWorld::ensure()
+ComponentId EntityWorld::compTypeEnsure()
 {
-	const auto id = getCompId<comptype>();
+	const auto id = getComponentId<comptype>();
 
 	if(id >= m_compPools.capacity())
 	{
@@ -97,10 +101,10 @@ CompTypeId EntityWorld::ensure()
 template<typename comptype, typename ...argtyps>
 void EntityWorld::assign(const EntityId& enttId, argtyps&& ...args)
 {
-	assert(isAlive(enttId) && "Invalid entity");
+	assert(isValid(enttId) && "Invalid entity");
 	
-	const auto id = ensure<comptype>(); 
-	Pool<comptype>* pool{m_compPools.get(id)};
+	const auto compid = compTypeEnsure<comptype>(); 
+	Pool<comptype>* pool{m_compPools.get(compid)};
 
 	assert(pool->has(enttId) && "Component already exists");	
 
@@ -111,8 +115,8 @@ void EntityWorld::assign(const EntityId& enttId, argtyps&& ...args)
 template<typename comptype>
 bool EntityWorld::has(const EntityId& enttId)
 {
-	const auto id = ensure<comptype>();
-	Pool<comptype>* pool{m_compPools.get(id)};
+	const auto compid = compTypeEnsure<comptype>();
+	Pool<comptype>* pool{m_compPools.get(compid)};
 	return pool->has(enttId);
 }
 
@@ -120,7 +124,7 @@ template<typename... comptypes>
 View<Pool<comptypes>...>  EntityWorld::view()
 {
 	static_assert(sizeof...(comptypes) > 0, "Cannot view without component types");
-	return {m_compPools.get(ensure<comptypes>)...};
+	return {m_compPools.get(compTypeEnsure<comptypes>())...};
 }
 
 #endif // ENTITY_WORLD_HPP

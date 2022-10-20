@@ -5,28 +5,28 @@
 //-Entity
 struct EntityId  
 {
-  using idx_t  = std::uint32_t;
-  using vers_t = std::uint16_t;
+  using index_t   = std::uint32_t;
+  using version_t = std::uint16_t;
   
-  idx_t  index;
-  vers_t version;
+  index_t  index;
+  version_t version;
 
-  inline static const idx_t nullidx{std::numeric_limits<idx_t>::max()};
+  inline static const index_t nullidx{std::numeric_limits<index_t>::max()};
 };
 
 //-Component
-using CompTypeId = std::size_t;
-CompTypeId newCompId()
+using ComponentId = std::size_t;
+ComponentId newComponentId()
 {
-	static CompTypeId idCount{0u};
+	static ComponentId idCount{0u};
 	return idCount++;
 }
 
 template<class CompType>
-CompTypeId getCompId()
+ComponentId getComponentId()
 {
 	// Static & const: to return the same id whenever same the type given
-	static const CompTypeId uniqueId{newCompId()}; 
+	static const ComponentId uniqueId{newCompId()}; 
 	return uniqueId;
 }
 
