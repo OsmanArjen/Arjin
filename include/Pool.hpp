@@ -13,9 +13,9 @@
 // TODO: IMPLEMENT THE NEW REVERSE VERSION OF THE ITERATORS
 // TODO: FIND OUT HOW ITERATORS CAN BE CONSTEXPR
 
-struct PoolTraits
+class PoolTraits
 {
-	using index_type = EntityId::index_t;
+	using index_type = EntityType::index_t;
 	static constexpr unsigned int sparseEnttShift{12};
 	static constexpr unsigned int denseEnttShift{12};
 
@@ -184,8 +184,6 @@ public:
 
 	constexpr CompIterator(const CompIterator<pooldense>& other)
 	: CompIterator{other.m_dense, other.m_currIdx} {}
-
-
 
 	constexpr CompIterator& operator++()
 	{
@@ -378,7 +376,7 @@ private:
 class PoolBase
 {
 public:
-	using index_type     = EntityId::index_t;
+	using index_type     = EntityType::index_t;
 	using container_t    = std::vector<index_t>;
 	using iterator       = EnttIterator<container_t>;
 	using const_iterator = EnttIterator<const container_t>;
@@ -431,7 +429,12 @@ public:
 
 	bool has(index_type idx) const
 	{ 
-		return (idx < (m_sparse.size() * traits::sparsePageSize) && indexOf(idx) != EntityId::nullidx);
+		return (idx < extent() && indexOf(idx) != EntityType::nullidx);
+	}
+
+	size_t extent() const 
+	{
+		return (m_sparse.size() * traits::sparsePageSize);
 	}
 
 	size_t size() const
@@ -471,11 +474,15 @@ protected:
 
 	index_type& ensureSparseRef(index_type enttIdx)
 	{
-		const auto enttpage{traits::sparsePageIndex(enttIdx)};
-
-		if(!(enttpage < m_sparse.size()))
+		auto pageidx  = traits::sparsePageIndex(enttIdx);
+		auto currSize = m_sparse.size();
+		if(!(pageidx < currSize))
 		{
-			m_sparse.resize((enttpage + 1u), {new container_t{traits::sparsePageSize, EntityId::nullidx}});
+			m_sparse.resize((pageidx + 1u), nullptr);
+			for(const auto newSize = m_sparse.size(); currSize < newSize; ++currSize)
+			{
+				m_sparse[currSize] = {new container_t{traits::sparsePageSize, EntityType::nullidx}};
+			}
 		}
 
 		return sparseRef(enttIdx);
@@ -483,7 +490,7 @@ protected:
 
 	index_type& sparseRef(index_type idx)
 	{
-		assert((idx < (m_sparse.size() * traits::sparsePageSize)) && "Invalid entity");
+		assert((idx < extent()) && "Invalid entity");
 		return m_sparse[traits::sparsePageIndex(idx)][traits::sparseOffset(idx)];
 	}
 
@@ -516,15 +523,6 @@ public:
 	/*! @brief Default constructor. */
 	Pool() = default;
 
-	/**
-	 * @brief Constructs the container with a capacity.
-	 * @param capacity of the container
-	 */
-	explicit Pool(index_type capacity)
-	{
-		reserve(capacity);
-	}
-
     /**
      * @brief Move constructor.
      * @param the other instance to move from
@@ -533,6 +531,14 @@ public:
 	: PoolBase(std::move(other))
 	, m_dataDense(std::move(other.m_dataDense)) {}
 
+	/**
+	 * @brief Constructs the container with a capacity.
+	 * @param capacity of the container
+	 */
+	explicit Pool(index_type capacity)
+	{
+		reserve(capacity);
+	}
 
 	/*! @brief Default destructor. */
 	~Pool() override
@@ -597,12 +603,12 @@ public:
 	{
 		assert(!has(entt) && "Id already exists");
 
-		index_type& entityRef   = ensureSparseRef(entt);
-		page_type&  dataPageRef = currentDensePage();
+		index_type& entityRef    = ensureSparseRef(entt);
+		page_type&  currDataPage = denseCurrentPage();
 
 		const auto denseIdx = m_enttDense.size();
 		m_enttDense.emplace_back(entt);
-		dataPageRef.emplace_back(std::forward<argtyps>(args)...);
+		currDataPage.emplace_back(std::forward<argtyps>(args)...);
 		entityRef = denseIdx;
 	}
 
@@ -610,24 +616,25 @@ public:
 	{
 		assert(has(entt) && "Id doesn't exist");
 
-		auto& backRef = sparseRef(m_enttDense.back());
-		auto& enttRef = sparseRef(entt);
+		auto& backRef   = sparseRef(m_enttDense.back());
+		auto& erasedRef = sparseRef(entt);
+		auto  backIdx   = (m_enttDense.size() - 1);
 
-		std::swap(m_enttDense.back(), m_enttDense[enttRef]);
-		std::swap(dataDenseRef(m_enttDense.size() - 1), dataDenseRef(enttRef));
+		std::swap(m_enttDense.back(),    m_enttDense[erasedRef]);
+		std::swap(dataDenseRef(backIdx), dataDenseRef(erasedRef));
 
-		backRef = enttRef;
-		enttRef = EntityId::nullidx;
+		backRef   = erasedRef;
+		erasedRef = EntityType::nullidx;
 
 		m_enttDense.pop_back();
-		m_dataDense.pop_back();
+		densePageRef(backIdx).pop_back();
 		
 	}
 
 	void clear()
 	{
 		m_enttDense.clear();
-		m_dataDense.clear();
+		releasePages();
 	}
 
 private:
@@ -636,10 +643,15 @@ private:
 	value_type& dataDenseRef(index_type idx)
 	{
 		assert((idx < (m_dataDense.size() * traits::densePageSize)) && "Invalid entity")
-		return m_dataDense[traits::densePageIndex(idx)][traits::denseOffset(idx)];
+		return densePageRef(idx)[traits::denseOffset(idx)];
 	}
 
-	page_type& currentDensePage()
+	page_type& densePageRef(index_type idx)
+	{
+		return m_dataDense[traits::densePageIndex(idx)];
+	}
+
+	page_type& denseCurrentPage()
 	{
 		auto pageidx = traits::densePageIndex(m_enttDense.size());
 		if(!(pageidx < m_dataDense.size()))
@@ -665,11 +677,12 @@ private:
 
 	void releasePages()
 	{
-		for(auto* pageptr : m_dataDense)
+		for(auto&& pageptr : m_dataDense)
 		{
 			if(pageptr != nullptr)
 			{
 				delete pageptr;
+				pageptr = nullptr;
 			}
 		}
 	}

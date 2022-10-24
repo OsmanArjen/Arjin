@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <limits>
 //-Entity
-struct EntityId  
+struct EntityType  
 {
   using index_t   = std::uint32_t;
   using version_t = std::uint16_t;
@@ -15,18 +15,18 @@ struct EntityId
 };
 
 //-Component
-using ComponentId = std::size_t;
-ComponentId newComponentId()
+using CompTypeId = std::size_t;
+CompTypeId newComponentId()
 {
-	static ComponentId idCount{0u};
+	static CompTypeId idCount{0u};
 	return idCount++;
 }
 
 template<class CompType>
-ComponentId getComponentId()
+CompTypeId getComponentId()
 {
 	// Static & const: to return the same id whenever same the type given
-	static const ComponentId uniqueId{newCompId()}; 
+	static const CompTypeId uniqueId{newCompId()}; 
 	return uniqueId;
 }
 
