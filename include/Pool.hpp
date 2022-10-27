@@ -45,22 +45,22 @@ class PoolTraits
 };
 
 //-EnttIterator
-template<typename pooldense>
+template<typename pooldense_t>
 class EnttIterator
 {
 public:
-	using value_type        = typename pooldense::value_type;
-	using difference_type   = typename pooldense::difference_type;
+	using value_type        = typename pooldense_t::value_type;
+	using difference_type   = typename pooldense_t::difference_type;
 	using iterator_category = std::random_access_iterator_tag;
 	using pointer           = value_type*;
 	using reference         = value_type&;
 public:
 	constexpr EnttIterator() = default;
-	constexpr EnttIterator(pooldense* ref, difference_type idx)
+	constexpr EnttIterator(pooldense_t* ref, difference_type idx)
 	: m_dense{ref}
 	, m_currIdx{idx} {}
 
-	constexpr EnttIterator(const EnttIterator<pooldense>& other)
+	constexpr EnttIterator(const EnttIterator<pooldense_t>& other)
 	: EnttIterator{other.m_dense, other.m_currIdx} {}
 
 
@@ -162,27 +162,27 @@ public:
 	    return !(other.m_currIdx < m_currIdx);
 	}
 private:
-	const pooldense* m_dense;
+	const pooldense_t* m_dense;
 	difference_type  m_currIdx;
 };
 
 //-CompIterator
-template<typename pooldense>
+template<typename pooldense_t>
 class CompIterator
 {
 public:
-	using value_type        = typename pooldense::value_type;
-	using difference_type   = typename pooldense::difference_type;
+	using value_type        = typename pooldense_t::value_type;
+	using difference_type   = typename pooldense_t::difference_type;
 	using iterator_category = std::random_access_iterator_tag;
 	using pointer           = value_type*;
 	using reference         = value_type&;
 public:
 	constexpr CompIterator() = default;
-	constexpr CompIterator(pooldense* ref, difference_type idx)
+	constexpr CompIterator(pooldense_t* ref, difference_type idx)
 	: m_dense{ref}
 	, m_currIdx{idx} {}
 
-	constexpr CompIterator(const CompIterator<pooldense>& other)
+	constexpr CompIterator(const CompIterator<pooldense_t>& other)
 	: CompIterator{other.m_dense, other.m_currIdx} {}
 
 	constexpr CompIterator& operator++()
@@ -285,7 +285,7 @@ public:
 	    return !(other.m_currIdx < m_currIdx);
 	}
 private:
-	pooldense*       m_dense;
+	pooldense_t*       m_dense;
 	difference_type  m_currIdx;
 };
 
@@ -392,7 +392,7 @@ public:
      */
 	PoolBase(PoolBase&& other)
 	: m_sparse{std::move(other.m_sparse)}
-	, m_enttDense{std::move(other.m_enttDense)} {}
+	, m_entityDense{std::move(other.m_entityDense)} {}
 
 	/*! @brief Default destructor. */
 	virtual ~PoolBase()
@@ -407,8 +407,8 @@ public:
 	 */
 	index_type entity(index_type idx)
 	{
-		assert(idx < m_enttDense.size() && "Index is out of bounds");
-		return m_enttDense[idx];
+		assert(idx < m_entityDense.size() && "Index is out of bounds");
+		return m_entityDense[idx];
 	}
 
 	/**
@@ -424,7 +424,7 @@ public:
 
 	bool empty() const
 	{
-		return m_enttDense.empty();
+		return m_entityDense.empty();
 	}
 
 	bool has(index_type idx) const
@@ -439,7 +439,7 @@ public:
 
 	size_t size() const
 	{
-		return m_enttDense.size();
+		return m_entityDense.size();
 	}
 
 	size_t capacity() const
@@ -450,12 +450,12 @@ public:
 
 	iterator begin()
 	{
-		return {&m_enttDense, {m_enttDense.size() - 1u}};
+		return {&m_entityDense, {m_entityDense.size() - 1u}};
 	}
 
 	iterator end()
 	{
-		return {&m_enttDense, -1};
+		return {&m_entityDense, -1};
 	}
 
 	const_iterator cbegin()
@@ -470,8 +470,8 @@ public:
 
 protected:
 	std::vector<container_t*> m_sparse;
-	container_t               m_enttDense;
-
+	container_t               m_entityDense;
+private:
 	index_type& ensureSparseRef(index_type enttIdx)
 	{
 		auto pageidx  = traits::sparsePageIndex(enttIdx);
@@ -592,7 +592,7 @@ public:
 	{
 		if(cap != 0u)
 		{
-			m_enttDense.reserve(cap);
+			m_entityDense.reserve(cap);
 			reservePages(traits::densePageIndex(cap - 1u) + 1u);
 		}
 	}
@@ -606,8 +606,8 @@ public:
 		index_type& entityRef    = ensureSparseRef(entt);
 		page_type&  currDataPage = denseCurrentPage();
 
-		const auto denseIdx = m_enttDense.size();
-		m_enttDense.emplace_back(entt);
+		const auto denseIdx = m_entityDense.size();
+		m_entityDense.emplace_back(entt);
 		currDataPage.emplace_back(std::forward<argtyps>(args)...);
 		entityRef = denseIdx;
 	}
@@ -616,24 +616,24 @@ public:
 	{
 		assert(has(entt) && "Id doesn't exist");
 
-		auto& backRef   = sparseRef(m_enttDense.back());
+		auto& backRef   = sparseRef(m_entityDense.back());
 		auto& erasedRef = sparseRef(entt);
-		auto  backIdx   = (m_enttDense.size() - 1);
+		auto  backIdx   = (m_entityDense.size() - 1);
 
-		std::swap(m_enttDense.back(),    m_enttDense[erasedRef]);
+		std::swap(m_entityDense.back(),    m_entityDense[erasedRef]);
 		std::swap(dataDenseRef(backIdx), dataDenseRef(erasedRef));
 
 		backRef   = erasedRef;
 		erasedRef = EntityType::nullidx;
 
-		m_enttDense.pop_back();
+		m_entityDense.pop_back();
 		densePageRef(backIdx).pop_back();
 		
 	}
 
 	void clear()
 	{
-		m_enttDense.clear();
+		m_entityDense.clear();
 		releasePages();
 	}
 
@@ -653,7 +653,7 @@ private:
 
 	page_type& denseCurrentPage()
 	{
-		auto pageidx = traits::densePageIndex(m_enttDense.size());
+		auto pageidx = traits::densePageIndex(m_entityDense.size());
 		if(!(pageidx < m_dataDense.size()))
 		{
 			reservePages((pageidx + 1u));

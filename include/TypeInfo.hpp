@@ -8,7 +8,7 @@ struct EntityType
   using index_t   = std::uint32_t;
   using version_t = std::uint16_t;
   
-  index_t  index;
+  index_t   index;
   version_t version;
 
   inline static const index_t nullidx{std::numeric_limits<index_t>::max()};

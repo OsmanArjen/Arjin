@@ -2,6 +2,7 @@
 #define ENTITY_WORLD_HPP
 #include <memory>
 #include <cstdint>
+#include <type_traits>
 #include "Pool.hpp"
 #include "View.hpp"
 #include "TypeInfo.hpp"
@@ -65,7 +66,7 @@ public:
 	    }
 	}
 
-	EntityRange bulkCreate(EntityType::index_t newcount)
+	EntityRange create(EntityType::index_t newcount)
 	{
 	    if(newcount == 0u) return {m_entityDense.begin(), 0u};
 	    auto entityCount = m_entityDense.size();
@@ -125,8 +126,7 @@ public:
 	{
 		assert(isValid(enttId) && "Invalid entity");
 		
-		const auto compid = compTypeEnsure<comptype>(); 
-		Pool<comptype>* pool{m_compPools[compid]};
+		auto& pool = poolEnsure<comptype>();
 
 		assert(pool->has(enttId) && "Component already exists");	
 
@@ -135,34 +135,38 @@ public:
 	}
 
 	template<typename comptype>
+	void erase(const EntityType& enttId)
+	{
+		
+	}
+	
+	template<typename comptype>
 	bool has(const EntityType& enttId)
 	{
-		const auto compid = compTypeEnsure<comptype>();
-		Pool<comptype>* pool{m_compPools[compid]};
-		return pool->has(enttId);
+		return poolEnsure<comptype>().has(enttId);
 	}
 
 	template<typename... comptypes>
 	View<Pool<comptypes>...> view()
 	{
 		static_assert(sizeof...(comptypes) > 0, "Cannot view without component types");
-		return {m_compPools[compTypeEnsure<comptypes>()]...};
+		return {poolEnsure<std::remove_const_t(comptypes)>()...};
 	}
 
 private:
 	using vec      = std::vector;
-	using pool_ptr = std::unique_ptr<PoolBase>;
+	using pool_ptr = std::shared_ptr<PoolBase>;
 	using pool_map = std::unordered_map<CompTypeId, pool_ptr>;
 
-	//-
+private:
 	pool_map    m_compPools;
 	index_type  m_aliveCount;
 	vec<index_type> m_entitySparse;	 
 	vec<EntityType> m_entityDense;	 
-
-	//-
+	
+private:
 	template<typename comptype>
-	CompTypeId compTypeEnsure()
+	auto& poolEnsure()
 	{
 		const auto id = getComponentId<comptype>();
 
@@ -171,7 +175,7 @@ private:
 			m_compPools.insert({id, {new Pool<comptype>()}});
 		}
 
-		return id;
+		return static_cast<Pool<comptype>>(*m_compPools[id]);
 	}
 	
 	EntityType newEntity()
