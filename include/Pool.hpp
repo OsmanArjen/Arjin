@@ -22,22 +22,22 @@ class PoolTraits
 	static constexpr unsigned int sparsePageSize{2 ** sparseEnttShift};
 	static constexpr unsigned int densePageSize{2 ** denseEnttShift};
 
-	index_type sparsePageIndex(const index_type enttIdx)
+	constexpr index_type sparsePageIndex(index_type enttIdx)
 	{
 		return (enttIdx >> PoolTraits::sparseEnttShift);
 	}
 
-	index_type sparseOffset(const index_type enttIdx)
+	constexpr index_type sparseOffset(index_type enttIdx)
 	{
 		return (enttIdx & (PoolTraits::sparsePageSize - 1));
 	}
 
-	index_type densePageIndex(const index_type enttIdx)
+	constexpr index_type densePageIndex(index_type enttIdx)
 	{
 		return (enttIdx >> PoolTraits::denseEnttShift);
 	}
 
-	index_type denseOffset(const index_type enttIdx)
+	constexpr index_type denseOffset(index_type enttIdx)
 	{
 		return (enttIdx & (PoolTraits::densePageSize - 1));
 	}
