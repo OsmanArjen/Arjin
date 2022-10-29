@@ -16,14 +16,16 @@ public:
 	using reference         = typename type_iterator::value_type&;
 	using iterator_category = std::forward_iterator_tag;
 public:
-	ViewIterator(type_iterator curr, pool_t* min, std::array<pool_t,typecount> pools)
-	: m_curr{curr}
-	, m_minPool{min} { while(m_curr != m_minPool.end() && !hasAll()) { m_curr++; } }
+	ViewIterator(type_iterator begin, type_iterator end, std::array<pool_t,typecount> pools)
+	: m_pools{pools}
+	, m_it{begin}
+	, m_end{end} { findCurrentEntt(); }
 
     ViewIterator &operator++() noexcept 
     {
-    	while(++m_curr != m_minPool.end() && !hasAll()) {}
-        return *this;
+    	++m_it;
+    	findCurrentEntt();
+    	return *this;
     }
 
     ViewIterator operator++(int) noexcept
@@ -34,33 +36,50 @@ public:
     }
 
     pointer operator->() const noexcept {
-        return &*m_curr;
+        return &*m_it;
     }
 
     reference operator*() const noexcept {
-        return *m_curr;
+        return *m_it;
     }
-    
-private:
-	std::array<pool_t,typecount> m_pools;
-	minpool_t::const_iterator    m_curr;
-	minpool_t*                   m_minPool;
+
+	bool operator==(const ViewIterator& other) noexcept
+	{
+	    return m_it == other.m_it;
+	}
+	
+
+	bool operator!=(const ViewIterator& other) noexcept
+	{
+	    return !(m_it == other.m_it);
+	}
 
 private:
+	std::array<pool_t,typecount> m_pools;
+	type_iterator m_it;
+	type_iterator m_end;
+private:
+	void findCurrentEntt()
+	{
+		while(m_it != m_end && !hasAll()) 
+		{
+			m_it++;
+		}
+	}
+
 	bool hasAll()
 	{
-		return std::apply([](const auto*... pool){return (pool->has(*m_curr) && ...);}, m_pools)
+		return std::apply([](const auto*... pool){return (pool->has(*m_it) && ...);}, m_pools)
 	}
+
 };
 
 template<class... pool_t>
 class View
 {
 public:
-	using iterator;
-	using const_iterator;
 	using pool_base_t = std::common_type<pool_t...>;
-
+	using iterator    = ViewIterator<pool_base_t, sizeof...(pool_t)>;
 public:
 	View() = default;
 
