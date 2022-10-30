@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <type_traits>
 #include "TypeInfo.hpp"
-
+#include "IteratorTraits.hpp"
 
 // TODO: FIX THE ENTITYWORLD CLASS THE RESERVE FUNCTION AND ENTITYPOOL FUNCTIONALITY
 // TODO: FIX VIEW CLASS ACCORDING TO NEW POOLBASE STRUCTURE
@@ -44,70 +44,70 @@ class PoolTraits
 
 };
 
-//-EnttIterator
+//-PoolEntityIterator
 template<typename pooldense_t>
-class EnttIterator
+class PoolEntityIterator
 {
 public:
-	using value_type        = typename pooldense_t::value_type;
 	using difference_type   = typename pooldense_t::difference_type;
+	using value_type        = typename pooldense_t::value_type;
+	using pointer           = typename pooldense_t::const_pointer;
+	using reference         = typename pooldense_t::const_reference;
 	using iterator_category = std::random_access_iterator_tag;
-	using pointer           = value_type*;
-	using reference         = value_type&;
 public:
-	constexpr EnttIterator() = default;
-	constexpr EnttIterator(pooldense_t* ref, difference_type idx)
+	constexpr PoolEntityIterator() = default;
+	constexpr PoolEntityIterator(pooldense_t* ref, difference_type idx)
 	: m_dense{ref}
 	, m_currIdx{idx} {}
 
-	constexpr EnttIterator(const EnttIterator<pooldense_t>& other)
-	: EnttIterator{other.m_dense, other.m_currIdx} {}
+	constexpr PoolEntityIterator(const PoolEntityIterator<pooldense_t>& other)
+	: PoolEntityIterator{other.m_dense, other.m_currIdx} {}
 
 
-	constexpr EnttIterator& operator++()
+	constexpr PoolEntityIterator& operator++()
 	{
 		m_currIdx--;
 		return *this;
 	}
 
-	constexpr EnttIterator  operator++(int)
+	constexpr PoolEntityIterator  operator++(int)
 	{
 		auto cpy = *this;
 		--m_currIdx;
 		return cpy;
 	}
 
-	constexpr EnttIterator& operator--()
+	constexpr PoolEntityIterator& operator--()
 	{
 		m_currIdx++;
 		return *this;
 	}
 
-	constexpr EnttIterator  operator--(int)
+	constexpr PoolEntityIterator  operator--(int)
 	{
 		auto cpy = *this;
 		++m_currIdx;
 		return cpy;
 	}
 
-    constexpr EnttIterator& operator+=(const difference_type value) noexcept
+    constexpr PoolEntityIterator& operator+=(const difference_type value) noexcept
     {
         m_currIdx -= value;
         return *this;
     }
 
-    constexpr EnttIterator& operator-=(const difference_type value) noexcept
+    constexpr PoolEntityIterator& operator-=(const difference_type value) noexcept
     {
         return (*this += -value);
     }
 
-    constexpr EnttIterator  operator+(const difference_type value) const noexcept
+    constexpr PoolEntityIterator  operator+(const difference_type value) const noexcept
     {
-        EnttIterator copy = *this;
+        PoolEntityIterator copy = *this;
         return (copy += value);
     }
 
-    constexpr EnttIterator  operator-(const difference_type value) const noexcept
+    constexpr PoolEntityIterator  operator-(const difference_type value) const noexcept
     {
         return (*this + -value);
     }
@@ -127,37 +127,37 @@ public:
 		return m_dense->data() + m_currIdx;
 	}
 
-	constexpr bool operator==(const EnttIterator& other) noexcept
+	constexpr bool operator==(const PoolEntityIterator& other) noexcept
 	{
 	    return m_currIdx == other.m_currIdx;
 	}
 	
 
-	constexpr bool operator!=(const EnttIterator& other) noexcept
+	constexpr bool operator!=(const PoolEntityIterator& other) noexcept
 	{
 	    return !(m_currIdx == other.m_currIdx);
 	}
 	
 
-	constexpr bool operator<(const EnttIterator& other) noexcept
+	constexpr bool operator<(const PoolEntityIterator& other) noexcept
 	{
 	    return m_currIdx > other.m_currIdx;
 	}
 	
 
-	constexpr bool operator>(const EnttIterator& other) noexcept
+	constexpr bool operator>(const PoolEntityIterator& other) noexcept
 	{
 	    return m_currIdx < other.m_currIdx;
 	}
 	
 
-	constexpr bool operator<=(const EnttIterator& other) noexcept
+	constexpr bool operator<=(const PoolEntityIterator& other) noexcept
 	{
 	    return !(other.m_currIdx > m_currIdx);
 	}
 	
 
-	constexpr bool operator>=(const EnttIterator& other) noexcept
+	constexpr bool operator>=(const PoolEntityIterator& other) noexcept
 	{
 	    return !(other.m_currIdx < m_currIdx);
 	}
@@ -166,9 +166,9 @@ private:
 	difference_type  m_currIdx;
 };
 
-//-CompIterator
+//-PoolDataIterator
 template<typename pooldense_t>
-class CompIterator
+class PoolDataIterator
 {
 public:
 	using value_type        = typename pooldense_t::value_type;
@@ -177,58 +177,58 @@ public:
 	using pointer           = value_type*;
 	using reference         = value_type&;
 public:
-	constexpr CompIterator() = default;
-	constexpr CompIterator(pooldense_t* ref, difference_type idx)
+	constexpr PoolDataIterator() = default;
+	constexpr PoolDataIterator(pooldense_t* ref, difference_type idx)
 	: m_dense{ref}
 	, m_currIdx{idx} {}
 
-	constexpr CompIterator(const CompIterator<pooldense_t>& other)
-	: CompIterator{other.m_dense, other.m_currIdx} {}
+	constexpr PoolDataIterator(const PoolDataIterator<pooldense_t>& other)
+	: PoolDataIterator{other.m_dense, other.m_currIdx} {}
 
-	constexpr CompIterator& operator++()
+	constexpr PoolDataIterator& operator++()
 	{
 		m_currIdx--;
 		return *this;
 	}
 
-	constexpr CompIterator  operator++(int)
+	constexpr PoolDataIterator  operator++(int)
 	{
 		auto cpy = *this;
 		--m_currIdx;
 		return cpy;
 	}
 
-	constexpr CompIterator& operator--()
+	constexpr PoolDataIterator& operator--()
 	{
 		m_currIdx++;
 		return *this;
 	}
 
-	constexpr CompIterator  operator--(int)
+	constexpr PoolDataIterator  operator--(int)
 	{
 		auto cpy = *this;
 		++m_currIdx;
 		return cpy;
 	}
 
-    constexpr CompIterator& operator+=(const difference_type value) noexcept
+    constexpr PoolDataIterator& operator+=(const difference_type value) noexcept
     {
         m_currIdx -= value;
         return *this;
     }
 
-    constexpr CompIterator& operator-=(const difference_type value) noexcept
+    constexpr PoolDataIterator& operator-=(const difference_type value) noexcept
     {
         return (*this += -value);
     }
 
-    constexpr CompIterator  operator+(const difference_type value) const noexcept
+    constexpr PoolDataIterator  operator+(const difference_type value) const noexcept
     {
-        CompIterator copy = *this;
+        PoolDataIterator copy = *this;
         return (copy += value);
     }
 
-    constexpr CompIterator  operator-(const difference_type value) const noexcept
+    constexpr PoolDataIterator  operator-(const difference_type value) const noexcept
     {
         return (*this + -value);
     }
@@ -250,37 +250,37 @@ public:
 
 	}
 
-	constexpr bool operator==(const CompIterator& other) noexcept
+	constexpr bool operator==(const PoolDataIterator& other) noexcept
 	{
 	    return m_currIdx == other.m_currIdx;
 	}
 	
 
-	constexpr bool operator!=(const CompIterator& other) noexcept
+	constexpr bool operator!=(const PoolDataIterator& other) noexcept
 	{
 	    return !(m_currIdx == other.m_currIdx);
 	}
 	
 
-	constexpr bool operator<(const CompIterator& other) noexcept
+	constexpr bool operator<(const PoolDataIterator& other) noexcept
 	{
 	    return m_currIdx > other.m_currIdx;
 	}
 	
 
-	constexpr bool operator>(const CompIterator& other) noexcept
+	constexpr bool operator>(const PoolDataIterator& other) noexcept
 	{
 	    return m_currIdx < other.m_currIdx;
 	}
 	
 
-	constexpr bool operator<=(const CompIterator& other) noexcept
+	constexpr bool operator<=(const PoolDataIterator& other) noexcept
 	{
 	    return !(other.m_currIdx > m_currIdx);
 	}
 	
 
-	constexpr bool operator>=(const CompIterator& other) noexcept
+	constexpr bool operator>=(const PoolDataIterator& other) noexcept
 	{
 	    return !(other.m_currIdx < m_currIdx);
 	}
@@ -289,98 +289,15 @@ private:
 	difference_type  m_currIdx;
 };
 
-
-//-PoolIterable
-template<typename itfirst_t, typename itsecond_t>
-class PoolIterable
-{
-public:
-	struct PairIterator
-	{
-	public:
-		using value_type        = std::pair<typename itfirst_t::value_type, typename itsecond_t::value_type>;
-		using reference         = value_type;
-		using difference_type   = std::ptrdiff_t;
-		using iterator_category = std::input_iterator_tag;
-		using iterator_pair     = std::pair<itfirst_t, itsecond_t>;
-
-		constexpr PairIterator() = default;
-		constexpr PairIterator(itfirst_t from, itsecond_t to)
-			: m_pair{from, to} {}
-
-		constexpr PairIterator& operator++()
-		{
-			++m_pair.first;
-			++m_pair.second;
-			return *this;
-		}
-
-		constexpr PairIterator operator++(int)
-		{
-			auto cpy = *this;
-			++(*this);
-	        return cpy;
-	    }
-
-	    constexpr value_type operator*() noexcept
-	    {
-	        return {*m_pair.first, *m_pair.second};
-	    }
-
-		constexpr bool operator==(const PairIterator& other) noexcept
-		{
-		    return m_pair.first == other.m_pair.first;
-		}
-		
-		constexpr bool operator!=(const PairIterator& other) noexcept
-		{
-		    return !((*this) == other);
-		}
-		
-	private:
-		iterator_pair m_pair;
-
-	};
-
-public:
-	constexpr PoolIterable() = default;
-	constexpr PoolIterable(PairIterator first, PairIterator second)
-	: m_first{std::move(first)}, m_second(std::move(second)) {}
-
-	constexpr PairIterator begin()
-	{
-		return m_first;
-	}
-
-	constexpr PairIterator end()
-	{
-		return m_second;
-	}
-
-	constexpr PairIterator cbegin()
-	{
-		return m_first;
-	}
-
-	constexpr PairIterator cend()
-	{
-		return m_second;
-	}
-
-private:
-	PairIterator  m_first;
-	PairIterator  m_second;
-};
-
 //-Pool
 class PoolBase
 {
 public:
 	using index_type     = EntityType::index_t;
 	using container_t    = std::vector<index_t>;
-	using iterator       = EnttIterator<container_t>;
-	using const_iterator = EnttIterator<const container_t>;
-	using traits         = PoolTraits<index_t>;
+	using iterator       = PoolEntityIterator<container_t>;
+	using const_iterator = iterator;
+	using traits         = PoolTraits;
 public:
 
 	/*! @brief Default constructor. */
@@ -495,7 +412,6 @@ private:
 	}
 
 private:
-
 	void releasePages()
 	{
 		for(auto* pageptr : m_sparse)
@@ -516,9 +432,10 @@ public:
 	using value_type     = value_t;
 	using page_type      = std::vector<value_type>;
 	using container_t    = std::vector<page_type*>;
-	using iterator       = CompIterator<container_t>;
-	using const_iterator = CompIterator<const container_t>;
-	using iterable       = PoolIterable<PoolBase::iterator, iterator>;
+	using iterator       = PoolDataIterator<container_t>;
+	using const_iterator = PoolDataIterator<const container_t>;
+	using iterable       = Iterable<PoolBase::iterator, iterator>;
+	using const_iterable = Iterable<PoolBase::const_iterator, const_iterator>;
 public:
 	/*! @brief Default constructor. */
 	Pool() = default;
@@ -549,8 +466,14 @@ public:
 	//-
 	iterable each()
 	{
-		return {{PoolBase::begin(), begin()}, 
-	            {PoolBase::end(),   end()}};
+		return {PairIterator{PoolBase::begin(), begin()}, 
+	            PairIterator{PoolBase::end(),   end()}};
+	}
+
+	iterable each()
+	{
+		return {PairIterator{PoolBase::cbegin(), cbegin()}, 
+	            PairIterator{PoolBase::cend(),   cend()}};
 	}
 
 	/**
@@ -638,8 +561,6 @@ public:
 	}
 
 private:
-	container_t m_dataDense;
-
 	value_type& dataDenseRef(index_type idx)
 	{
 		assert((idx < (m_dataDense.size() * traits::densePageSize)) && "Invalid entity")
@@ -686,7 +607,9 @@ private:
 			}
 		}
 	}
-
+	
+private:
+	container_t m_dataDense;
 };
 
 

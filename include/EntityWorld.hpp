@@ -125,45 +125,31 @@ public:
 	void assign(const EntityType& enttId, argtyps&& ...args)
 	{
 		assert(isValid(enttId) && "Invalid entity");
-		
 		auto& pool = poolEnsure<comptype>();
-
-		assert(pool->has(enttId) && "Component already exists");	
-
-		pool->insert(enttId.index, std::forward<argtyps>(args)...);
-
+		pool.insert(enttId.index, std::forward<argtyps>(args)...);
 	}
 
 	template<typename comptype>
 	void erase(const EntityType& enttId)
 	{
-		
+		assert(isValid(enttId) && "Invalid entity");
+		auto& pool = poolEnsure<comptype>();
+		pool.erase(enttId.index);
 	}
 	
 	template<typename comptype>
 	bool has(const EntityType& enttId)
 	{
-		return poolEnsure<comptype>().has(enttId);
+		return poolEnsure<comptype>().has(enttId.index);
 	}
 
 	template<typename... comptypes>
-	View<Pool<comptypes>...> view()
+	View<Pool<comptypes>...> each()
 	{
 		static_assert(sizeof...(comptypes) > 0, "Cannot view without component types");
 		return {poolEnsure<std::remove_const_t(comptypes)>()...};
 	}
 
-private:
-	using vec      = std::vector;
-	using pool_ptr = std::shared_ptr<PoolBase>;
-	using pool_map = std::unordered_map<CompTypeId, pool_ptr>;
-
-private:
-	pool_map    m_compPools;
-	index_type  m_aliveCount;
-	vec<index_type> m_entitySparse;	 
-	vec<EntityType> m_entityDense;	 
-	
 private:
 	template<typename comptype>
 	auto& poolEnsure()
@@ -187,6 +173,13 @@ private:
 
 	    return newId;
 	}
+
+private:
+	index_type m_aliveCount;
+	std::vector<index_type> m_entitySparse;	 
+	std::vector<EntityType> m_entityDense;	 
+	std::unordered_map<CompTypeId, std::unique_ptr<PoolBase>> m_compPools;
+	
 }; 
 
 #endif // ENTITY_WORLD_HPP

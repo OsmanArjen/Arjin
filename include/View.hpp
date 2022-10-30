@@ -5,30 +5,31 @@
 #include <algorithm>
 #include <type_traits>
 
-template<typename pool_t, std::size_t typecount>
-class ViewIterator
+template<class pool_t, std::size_t pool_n>
+class ViewEntityIterator
 {
 public:
-	using type_iterator     = typename pool_t::const_iterator;
-	using value_type        = typename type_iterator::value_type;
-	using difference_type   = typename type_iterator::difference_type;
-	using pointer           = typename type_iterator::value_type*;
-	using reference         = typename type_iterator::value_type&;
+	using pool_iterator     = typename pool_base_t::const_iterator;
+	using value_type        = typename pool_iterator::value_type;
+	using difference_type   = typename pool_iterator::difference_type;
+	using pointer           = typename pool_iterator::value_type*;
+	using reference         = typename pool_iterator::value_type&;
 	using iterator_category = std::forward_iterator_tag;
 public:
-	ViewIterator(type_iterator begin, type_iterator end, std::array<pool_t,typecount> pools)
+	constexpr ViewEntityIterator() = default;
+	ViewEntityIterator(pool_iterator begin, pool_iterator end, std::array<pool_t*, pool_n> pools)
 	: m_pools{pools}
 	, m_it{begin}
 	, m_end{end} { findCurrentEntt(); }
 
-    ViewIterator &operator++() noexcept 
+    ViewEntityIterator &operator++() noexcept 
     {
     	++m_it;
     	findCurrentEntt();
     	return *this;
     }
 
-    ViewIterator operator++(int) noexcept
+    ViewEntityIterator operator++(int) noexcept
     {
         auto cpy = *this;
         ++(*this);
@@ -43,21 +44,17 @@ public:
         return *m_it;
     }
 
-	bool operator==(const ViewIterator& other) noexcept
+	bool operator==(const ViewEntityIterator& other) noexcept
 	{
 	    return m_it == other.m_it;
 	}
 	
 
-	bool operator!=(const ViewIterator& other) noexcept
+	bool operator!=(const ViewEntityIterator& other) noexcept
 	{
 	    return !(m_it == other.m_it);
 	}
 
-private:
-	std::array<pool_t,typecount> m_pools;
-	type_iterator m_it;
-	type_iterator m_end;
 private:
 	void findCurrentEntt()
 	{
@@ -72,14 +69,75 @@ private:
 		return std::apply([](const auto*... pool){return (pool->has(*m_it) && ...);}, m_pools)
 	}
 
+private:
+	std::array<pool_t*, pool_n> m_pools;
+	pool_iterator m_it;
+	pool_iterator m_end;
+
 };
+
+
+
+// TODO FIX THIS
+template<class it_t, class... pool_t>
+class ViewPoolIterator
+{
+public:
+	using iterator_type   = it_t;
+	using difference_type = std::ptrdiff_t;
+	using value_type = decltype(std::tuple_cat(std::make_tuple(*std::declval<it_t>()),std::forward_as_tuple(std::declval<pool_t>().get({}))...));
+	using pointer    = value_type*;
+	using reference  = value_type;
+	using iterator_category = std::input_iterator_tag;
+public:
+	constexpr ViewPoolIterator() = default;
+	ViewPoolIterator(iterator_type begin, std::tuple<pool_t*...> pools)
+	: m_it{begin}
+	, m_pools{pools} {}
+
+	ViewPoolIterator &operator++() noexcept 
+	{
+		return *this;
+	}
+
+	ViewPoolIterator operator++(int) noexcept
+	{
+	    auto cpy = *this;
+	    ++(*this);
+	    return cpy;
+	}
+
+	pointer operator->() const noexcept
+	{
+	    return &*m_it;
+	}
+
+	reference operator*() const noexcept
+	{
+    	return *m_it;
+    }
+
+	bool operator==(const ViewPoolIterator& other) noexcept
+	{
+	    return m_it == other.m_it;
+	}
+		
+	bool operator!=(const ViewPoolIterator& other) noexcept
+	{
+		return !(m_it == other.m_it);
+	}
+private:
+	iterator_type m_it;
+};
+
+
 
 template<class... pool_t>
 class View
 {
 public:
 	using pool_base_t = std::common_type<pool_t...>;
-	using iterator    = ViewIterator<pool_base_t, sizeof...(pool_t)>;
+	using iterator    = ViewEntityIterator<pool_base_t, sizeof...(pool_t)>;
 public:
 	View() = default;
 
@@ -89,18 +147,18 @@ public:
 
 	iterator begin()
 	{
-		return {};
+		return {m_minPool.begin(), m_minPool.end(), tupleAsArray(m_pools)};
 	}
 
 	iterator end()
 	{
-		return {};
+		return {m_minPool.end(), m_minPool.end(), tupleAsArray(m_pools)};
 	}
 
-
-	iterable each()
+	iterable get()
 	{
-		// todo
+		return {ViewPoolIterator{m_minPool.begin(), m_pools},
+		        ViewPoolIterator{m_minPool.end(),   m_pools}};
 	}
 
 	void update()
@@ -116,10 +174,14 @@ public:
 	}
 
 private:
-	std::tuple<pool_t*...> m_pools;
-	pool_base_t*           m_minPool;
+	pool_base_t* findMinPool()
+	{
+		return  std::apply([](const auto* curr, const auto*... other){ 
+							((curr = curr->size() < other->size() ? curr : other), ...);
+							return curr;}, m_pools);
+	}
+	
 
-	//-
 	template<typename Func, std::size_t... pidx>
 	void apply(Func fn, std::index_sequence<pidx...>)
 	{
@@ -138,12 +200,17 @@ private:
 		return std::forward_as_tuple(std::get<pool>(m_pools)->get(entt));
 	}
 
-	pool_base_t* findMinPool()
+
+	template<typename tuple_t>
+	constexpr auto tupleAsArray(tuple_t&& tuple)
 	{
-		return  std::apply([](const auto* curr, const auto*... other){ 
-							((curr = curr->size() < other->size() ? curr : other), ...);
-							return curr;}, m_pools);
+    	constexpr auto getArr = [](auto&&... x){return std::array{std::forward<decltype(x)>(x)...};};
+    	return std::apply(getArr, std::forward<tuple_t>(tuple));
 	}
+
+private:
+	std::tuple<pool_t*...> m_pools;
+	pool_base_t*           m_minPool;
 };
 
 #endif // VIEW_HPP
