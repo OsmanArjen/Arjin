@@ -55,40 +55,40 @@ private:
 };
 
 
-template<class itfirst_t, class itsecond_t>
+template<class itfirst_t, class itsecond_t = itfirst_t>
 class Iterable
 {
 public:
-	using first_iterator = itfirst_t;
+	using first_iterator  = itfirst_t;
 	using second_iterator = itfirst_t;
 
 	constexpr Iterable() = default;
 	constexpr Iterable(itfirst_t first, itsecond_t second)
 	: m_first{std::move(first)}, m_second(std::move(second)) {}
 
-	constexpr PairIterator begin()
+	constexpr first_iterator begin()
 	{
 		return m_first;
 	}
 
-	constexpr PairIterator end()
+	constexpr second_iterator end()
 	{
 		return m_second;
 	}
 
-	constexpr PairIterator cbegin()
+	constexpr first_iterator cbegin()
 	{
 		return m_first;
 	}
 
-	constexpr PairIterator cend()
+	constexpr second_iterator cend()
 	{
 		return m_second;
 	}
 
 private:
-	PairIterator  m_first;
-	PairIterator  m_second;
+	first_iterator   m_first;
+	second_iterator  m_second;
 };
 
 #endif // ITERATOR_TRAITS_HPP

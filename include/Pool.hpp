@@ -163,7 +163,7 @@ public:
 	}
 private:
 	const pooldense_t* m_dense;
-	difference_type  m_currIdx;
+	difference_type    m_currIdx;
 };
 
 //-PoolDataIterator
@@ -247,7 +247,6 @@ public:
 	constexpr pointer   operator->()
 	{
 		return &(operator*());
-
 	}
 
 	constexpr bool operator==(const PoolDataIterator& other) noexcept
@@ -285,7 +284,7 @@ public:
 	    return !(other.m_currIdx < m_currIdx);
 	}
 private:
-	pooldense_t*       m_dense;
+	pooldense_t*     m_dense;
 	difference_type  m_currIdx;
 };
 
@@ -386,9 +385,6 @@ public:
 	}
 
 protected:
-	std::vector<container_t*> m_sparse;
-	container_t               m_entityDense;
-private:
 	index_type& ensureSparseRef(index_type enttIdx)
 	{
 		auto pageidx  = traits::sparsePageIndex(enttIdx);
@@ -411,6 +407,10 @@ private:
 		return m_sparse[traits::sparsePageIndex(idx)][traits::sparseOffset(idx)];
 	}
 
+protected:
+	std::vector<container_t*> m_sparse;
+	container_t               m_entityDense;
+
 private:
 	void releasePages()
 	{
@@ -429,13 +429,17 @@ template<typename value_t>
 class Pool : public PoolBase
 {
 public:
-	using value_type     = value_t;
-	using page_type      = std::vector<value_type>;
-	using container_t    = std::vector<page_type*>;
-	using iterator       = PoolDataIterator<container_t>;
-	using const_iterator = PoolDataIterator<const container_t>;
-	using iterable       = Iterable<PoolBase::iterator, iterator>;
-	using const_iterable = Iterable<PoolBase::const_iterator, const_iterator>;
+	using value_type      = value_t;
+	using page_type       = std::vector<value_type>;
+	using container_t     = std::vector<page_type*>;
+	using iterator        = PoolDataIterator<container_t>;
+	using const_iterator  = PoolDataIterator<const container_t>;
+
+	// !!TODO!!! fix this imma sleep, ok pyro go sleep imma fix it m rn pyro, i fix it the other pyro but i gotta sleep too idk whattodo rn 
+	// mashallah to me i love you pyro be safe or should i say Osman Arjen hehe
+	using iterable        = Iterable<PairIterator<PoolBase::iterator, iterator>>;
+	using const_iterable  = Iterable<PairIterator<PoolBase::const_iterator, const_iterator>>;
+
 public:
 	/*! @brief Default constructor. */
 	Pool() = default;
