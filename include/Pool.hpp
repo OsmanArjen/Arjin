@@ -12,7 +12,8 @@
 // TODO: FIX VIEW CLASS ACCORDING TO NEW POOLBASE STRUCTURE
 // TODO: IMPLEMENT THE NEW REVERSE VERSION OF THE ITERATORS
 // TODO: FIND OUT HOW ITERATORS CAN BE CONSTEXPR
-
+namespace arjin
+{
 class PoolTraits
 {
 	using index_type = EntityType::index_t;
@@ -292,11 +293,13 @@ private:
 class PoolBase
 {
 public:
-	using index_type     = EntityType::index_t;
-	using container_t    = std::vector<index_t>;
-	using iterator       = PoolEntityIterator<container_t>;
+	using traits = PoolTraits;
+	using index_type  = EntityType::index_t;
+	using container_t = std::vector<index_t>;
+	using iterator = PoolEntityIterator<container_t>;
 	using const_iterator = iterator;
-	using traits         = PoolTraits;
+    using reverse_iterator = std::reverse_iterator<iterator>;
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 public:
 
 	/*! @brief Default constructor. */
@@ -429,16 +432,15 @@ template<typename value_t>
 class Pool : public PoolBase
 {
 public:
-	using value_type      = value_t;
-	using page_type       = std::vector<value_type>;
-	using container_t     = std::vector<page_type*>;
-	using iterator        = PoolDataIterator<container_t>;
-	using const_iterator  = PoolDataIterator<const container_t>;
-
-	// !!TODO!!! fix this imma sleep, ok pyro go sleep imma fix it m rn pyro, i fix it the other pyro but i gotta sleep too idk whattodo rn 
-	// mashallah to me i love you pyro be safe or should i say Osman Arjen hehe
-	using iterable        = Iterable<PairIterator<PoolBase::iterator, iterator>>;
-	using const_iterable  = Iterable<PairIterator<PoolBase::const_iterator, const_iterator>>;
+	using value_type  = value_t;
+	using page_type   = std::vector<value_type>;
+	using container_t = std::vector<page_type*>;
+	using iterator = PoolDataIterator<container_t>;
+	using const_iterator = PoolDataIterator<const container_t>;
+	using reverse_iterator = std::reverse_iterator<iterator>;
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+	using iterable       = Iterable<PairIterator<PoolBase::iterator, iterator>>;
+	using const_iterable = Iterable<PairIterator<PoolBase::const_iterator, const_iterator>>;
 
 public:
 	/*! @brief Default constructor. */
@@ -615,6 +617,6 @@ private:
 private:
 	container_t m_dataDense;
 };
-
+}
 
 #endif // POOL_HPP

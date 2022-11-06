@@ -2,7 +2,9 @@
 #define TYPE_INFO_HPP
 #include <cstdint>
 #include <limits>
-//-Entity
+
+namespace arjin
+{
 struct EntityType  
 {
   using index_t   = std::uint32_t;
@@ -14,7 +16,6 @@ struct EntityType
   inline static const index_t nullidx{std::numeric_limits<index_t>::max()};
 };
 
-//-Component
 using CompTypeId = std::size_t;
 CompTypeId newComponentId()
 {
@@ -28,6 +29,8 @@ CompTypeId getComponentId()
 	// Static & const: to return the same id whenever same the type given
 	static const CompTypeId uniqueId{newCompId()}; 
 	return uniqueId;
+}
+
 }
 
 #endif // TYPE_INFO_HPP

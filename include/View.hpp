@@ -4,12 +4,15 @@
 #include <utility>
 #include <algorithm>
 #include <type_traits>
+#include "TypeTraits.hpp"
 
+namespace arjin
+{
 template<class pool_t, std::size_t pool_n>
 class ViewEntityIterator
 {
 public:
-	using pool_iterator     = typename pool_base_t::const_iterator;
+	using pool_iterator     = typename pool_t::const_iterator;
 	using value_type        = typename pool_iterator::value_type;
 	using difference_type   = typename pool_iterator::difference_type;
 	using pointer           = typename pool_iterator::value_type*;
@@ -66,7 +69,7 @@ private:
 
 	bool hasAll()
 	{
-		return std::apply([](const auto*... pool){return (pool->has(*m_it) && ...);}, m_pools)
+		return std::apply([curr=*m_it](const auto*... pool){return (pool->has(curr) && ...);}, m_pools)
 	}
 
 private:
@@ -77,25 +80,25 @@ private:
 };
 
 
-template<class it_t, class... pool_t>
+template<class it_t, class... pool_ts>
 class ViewPoolIterator
 {
 public:
 	using entity_iterator_t = it_t;
 	using difference_type   = std::ptrdiff_t;
 	using iterator_category = std::input_iterator_tag;
-	using value_type = decltype(std::make_tuple(*std::declval<it_t>(), declval<pool_t>().get({})...));
+	using value_type = decltype(std::make_tuple(*std::declval<it_t>(), declval<pool_ts>().get({})...));
 	using pointer    = value_type*;
 	using reference  = value_type;
 public:
 	constexpr ViewPoolIterator() = default;
-	ViewPoolIterator(entity_iterator_t begin, std::tuple<pool_t*...> pools)
-	: m_enttIt{begin}
+	ViewPoolIterator(entity_iterator_t begin, std::tuple<pool_ts*...> pools)
+	: m_it{begin}
 	, m_pools{pools} {}
 
 	ViewPoolIterator &operator++() noexcept 
 	{
-		++m_enttIt;
+		++m_it;
 		return *this;
 	}
 
@@ -108,43 +111,48 @@ public:
 
 	pointer operator->() const noexcept
 	{
-	    return &*m_enttIt;
+	    return &*m_it;
 	}
 
 	reference operator*() const noexcept
 	{
-    	return std::apply([curr = *m_enttIt](auto*... pool){
+    	return std::apply([curr = *m_it](auto*... pool){
     	           return std::make_tuple(curr, pool->get(curr)...);
     	       }, m_pools);
     }
 
 	bool operator==(const ViewPoolIterator& other) noexcept
 	{
-	    return m_enttIt == other.m_enttIt;
+	    return m_it == other.m_it;
 	}
 		
 	bool operator!=(const ViewPoolIterator& other) noexcept
 	{
-		return !(m_enttIt == other.m_enttIt);
+		return !(m_it == other.m_it);
 	}
 private:
-	entity_iterator_t      m_enttIt;
-	std::tuple<pool_t*...> m_pools;
+	entity_iterator_t m_it;
+	std::tuple<pool_ts*...> m_pools;
 };
 
 
-
-template<class... pool_t>
+template<class... pool_ts, class... exclude_t>
 class View
 {
 public:
-	using pool_base_t = std::common_type<pool_t...>;
-	using iterator    = ViewEntityIterator<pool_base_t, sizeof...(pool_t)>;
-	using iterable    = Iterable<ViewPoolIterator<iterator, pool_t...>>;
+	using pool_base_t  = std::common_type<pool_ts...>;
+	using pool_index_t = typename pool_base_t::index_type;
+	using iterator     = ViewEntityIterator<pool_base_t, sizeof...(pool_ts)>;
+
+	template<class... poolts>
+	using iterable = Iterable<ViewPoolIterator<iterator, poolts...>>;
+
+	template<typename type>
+	constexpr auto pool_index = typeIndex<type, std::tuple<pool_ts::value_type...>>::value;
 public:
 	View() = default;
 
-	View(pool_t&... pools)
+	View(pool_ts&... pools)
 	: m_pools{&pools...} 
 	, m_minPool{findMinPool()} {}
 
@@ -158,10 +166,30 @@ public:
 		return {m_minPool.end(), m_minPool.end(), tupleAsArray(m_pools)};
 	}
 
-	iterable each()
+	iterable<pool_ts...> get()
 	{
 		return {{m_minPool.begin(), m_pools},
 		        {m_minPool.end(),   m_pools}};
+	}
+
+	template<typename... type>
+	iterable<type...> get()
+	{
+		auto poolsToIter = std::make_tuple(pool<type>()...);
+		return {{m_minPool.begin(), poolsToIter},
+		        {m_minPool.end(),   poolsToIter}};
+	}
+
+	template<typename type>
+	auto get(pool_base_t::index_type entt)
+	{
+		pool<type>()->get(entt);
+	}
+
+	bool has(pool_base_t::index_type entt)
+	{
+		return std::apply([](const auto*... pool){return (pool->has(entt)  && ...);}, m_pools) &&
+		       std::apply([](const auto*... pool){return (!pool->has(entt) && ...);}, m_excluded);
 	}
 
 	void update()
@@ -173,10 +201,16 @@ public:
 	template<typename Func>
 	void apply(Func fn)
 	{
-		apply(std::move(fn), std::index_sequence_for(pool_t...));
+		apply(std::move(fn), std::index_sequence_for(pool_ts...));
 	}
 
 private:
+	template<typename type>
+	decltype(auto) pool()
+	{
+		return std::get<pool_index<type>>(m_pools);
+	}
+
 	template<typename Func, std::size_t... pidx>
 	void apply(Func fn, std::index_sequence<pidx...>)
 	{
@@ -205,8 +239,9 @@ private:
 	}
 
 private:
-	std::tuple<pool_t*...> m_pools;
-	pool_base_t*           m_minPool;
+	std::tuple<pool_ts*...>    m_pools;
+	std::tuple<exclude_ts*...> m_excluded;
+	pool_base_t* m_minPool;
 };
-
+}
 #endif // VIEW_HPP
