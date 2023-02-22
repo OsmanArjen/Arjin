@@ -3,45 +3,13 @@
 #include <memory>
 #include <cstdint>
 #include <type_traits>
+#include <span>
 #include "Pool.hpp"
 #include "View.hpp"
 #include "TypeInfo.hpp"
 
-/*
-TODO
-: IMPLEMENT COMPONENT REMOVE AND COMPLETE THAT SYSTEM AND MAYBE MAKE SINGLE HEADER
-*/
-class EntityRange
+namespace arjen
 {
-public:
-	using size_type = EntityType::index_t;
-	using iterator  = std::vector<EntityType>::const_iterator;
-public:
-	EntityRange() = default;
-	EntityRange(iterator begin, size_type size)
-	: m_begin(begin), m_size(size) {}
-
-	iterator begin() const
-	{
-	    return m_begin;
-	}
-
-	iterator end() const
-	{
-	    return (m_begin + m_size);
-	}
-
-	const EntityType& operator[](size_type idx) const
-	{
-		assert((idx < m_size));
-		return (m_begin + idx)*; 
-	}
-
-private:
-	iterator  m_begin;
-	size_type m_size;
-};
-
 class EntityWorld
 {
 public:
@@ -55,28 +23,31 @@ public:
 
 	EntityType create()
 	{
-	    auto deadIdx = m_aliveCount++;
+	    index_type deadIdx = m_aliveCount++;
 	    if(deadIdx < m_entityDense.size())
 	    {
 	        return m_entityDense[deadIdx];
 	    }
 	    else
 	    {
-	        return newEntity();
+	        m_entityDense.emplace_back(m_entitySparse.size(), 0);
+	        m_entitySparse.push_back(m_entityDense.size() - 1);
+	        return m_entityDense.back();
 	    }
 	}
 
-	EntityRange create(EntityType::index_t newcount)
+	const std::span<EntityType> create(EntityType::index_t newcount)
 	{
 	    if(newcount == 0u) return {m_entityDense.begin(), 0u};
-	    auto entityCount = m_entityDense.size();
-	    auto currAlive   = m_aliveCount;
-	    auto toCreate    = newcount - (entityCount - currAlive);
+	    index_type entityCount = m_entityDense.size();
+	    index_type currAlive = m_aliveCount;
+	    index_type toCreate = newcount - (entityCount - currAlive);
 
 	    m_aliveCount += newcount;
 		for (size_type i = 0u; i < toCreate; ++i)
 	    {
-	        newEntity();
+	        m_entityDense.emplace_back(m_entitySparse.size(), 0);
+        	m_entitySparse.push_back(m_entityDense.size() - 1);
 	    } 
 
 	    return {m_entityDense.begin() + currAlive, newcount}; 
@@ -92,8 +63,8 @@ public:
 	{
 	    assert(isValid(enttId) && "Invalid entity");
 
-	    auto denseIdx  = m_entitySparse[enttId.index];
-	    auto currAlive = m_aliveCount;
+	    index_type denseIdx  = m_entitySparse[enttId.index];
+	    index_type currAlive = m_aliveCount;
 	    m_entityDense[denseIdx].version++;
 
 	    if (denseIdx == (currAlive - 1u))
@@ -102,7 +73,7 @@ public:
 	    }
 	    else if (denseIdx < currAlive)
 	    {
-	        auto last = m_entityDense[currAlive - 1u];
+	        EntityType last = m_entityDense[currAlive - 1u];
 	        std::swap(m_entityDense[currAlive - 1u], m_entityDense[denseIdx]);
 	        std::swap(m_entitySparse[last.index],    m_entitySparse[enttId.index]);
 	        m_aliveCount--;
@@ -114,11 +85,10 @@ public:
 	    if ((enttId.index < 0u) || (enttId.index >= m_entitySparse.size()))
 	        return false;
 
-	    auto sparseIdx = m_entitySparse[enttId.index];
-	    auto checkId   = m_entityDense[sparseIdx];
+	    index_type sparseIdx = m_entitySparse[enttId.index];
+	    EntityType checkId   = m_entityDense[sparseIdx];
 	 
 	    return (enttId == checkId); 
-
 	}
 
 	template<typename comptype, typename ...argtyps>
@@ -181,5 +151,5 @@ private:
 	std::unordered_map<CompTypeId, std::unique_ptr<PoolBase>> m_compPools;
 	
 }; 
-
+}
 #endif // ENTITY_WORLD_HPP

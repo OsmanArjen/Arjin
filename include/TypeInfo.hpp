@@ -5,6 +5,8 @@
 
 namespace arjin
 {
+
+// TODO: 21.02.2023: Implement it with bitwise operators and dont use look up to get index or version
 struct EntityType  
 {
   using index_t   = std::uint32_t;
@@ -16,6 +18,7 @@ struct EntityType
   inline static const index_t nullidx{std::numeric_limits<index_t>::max()};
 };
 
+// TODO: 21.02.2023: Place this to the place its used
 using CompTypeId = std::size_t;
 CompTypeId newComponentId()
 {

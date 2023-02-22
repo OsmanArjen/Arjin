@@ -1,8 +1,8 @@
 #ifndef TYPE_TRAITS_HPP
 #define TYPE_TRAITS_HPP 
 
-namespace arjin {
-
+namespace arjin
+{
 template<typename type, typename tuple>
 struct typeIndex;
 
@@ -11,7 +11,6 @@ struct typeIndex<type, std::tuple<>>
 {
   static constexpr std::size_t value = 0;
 };
-
 
 template<typename type, typename... rest>
 struct typeIndex<type, std::tuple<type, rest...>>

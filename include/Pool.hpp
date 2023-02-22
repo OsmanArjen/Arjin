@@ -1,22 +1,29 @@
 #ifndef POOL_HPP
 #define POOL_HPP
-#include <vector>
-#include <cassert>
+#include "IteratorTraits.hpp"
+#include "TypeInfo.hpp"
+#include <type_traits>
 #include <utility>
 #include <algorithm>
-#include <type_traits>
-#include "TypeInfo.hpp"
-#include "IteratorTraits.hpp"
+#include <memory>
+#include <cassert>
+#include <vector>
+#include <cmath>
 
-// TODO: FIX THE ENTITYWORLD CLASS THE RESERVE FUNCTION AND ENTITYPOOL FUNCTIONALITY
-// TODO: FIX VIEW CLASS ACCORDING TO NEW POOLBASE STRUCTURE
-// TODO: IMPLEMENT THE NEW REVERSE VERSION OF THE ITERATORS
-// TODO: FIND OUT HOW ITERATORS CAN BE CONSTEXPR
+// they've been left as a syntax error for you to take care of them
+TODO: 19.02.2023: Change insert functionality and add it to the poolbase some part of it so that people can use PoolBase when they only wanna access the sparse and enttdense
+TODO: 18.02.2023: Fully add the allocator thing and also you figured it out it was to allocate new pages whenever we need and seperate them
+TODO: 16.02.2023: Figure out why we use pointers for vectors in PoolBase for example and fix it
+TODO: 16.02.2023: Check if you implemented the new reversed version of the iterators
+
+// TODO: FIX THE ENTITYWORLD CLASS THE RESERVE FUNCTION AND ENTITYPOOL FUNCTIONALITY// check if this is still relevant
+// TODO: FIX VIEW CLASS ACCORDING TO NEW POOLBASE STRUCTURE // check if this is still relevant
 namespace arjin
 {
 class PoolTraits
 {
 	using index_type = EntityType::index_t;
+
 	static constexpr unsigned int sparseEnttShift{12};
 	static constexpr unsigned int denseEnttShift{12};
 
@@ -45,7 +52,6 @@ class PoolTraits
 
 };
 
-//-PoolEntityIterator
 template<typename pooldense_t>
 class PoolEntityIterator
 {
@@ -132,31 +138,26 @@ public:
 	{
 	    return m_currIdx == other.m_currIdx;
 	}
-	
 
 	constexpr bool operator!=(const PoolEntityIterator& other) noexcept
 	{
 	    return !(m_currIdx == other.m_currIdx);
 	}
-	
 
 	constexpr bool operator<(const PoolEntityIterator& other) noexcept
 	{
 	    return m_currIdx > other.m_currIdx;
 	}
-	
 
 	constexpr bool operator>(const PoolEntityIterator& other) noexcept
 	{
 	    return m_currIdx < other.m_currIdx;
 	}
 	
-
 	constexpr bool operator<=(const PoolEntityIterator& other) noexcept
 	{
 	    return !(other.m_currIdx > m_currIdx);
 	}
-	
 
 	constexpr bool operator>=(const PoolEntityIterator& other) noexcept
 	{
@@ -167,7 +168,6 @@ private:
 	difference_type    m_currIdx;
 };
 
-//-PoolDataIterator
 template<typename pooldense_t>
 class PoolDataIterator
 {
@@ -255,53 +255,50 @@ public:
 	    return m_currIdx == other.m_currIdx;
 	}
 	
-
 	constexpr bool operator!=(const PoolDataIterator& other) noexcept
 	{
 	    return !(m_currIdx == other.m_currIdx);
 	}
 	
-
 	constexpr bool operator<(const PoolDataIterator& other) noexcept
 	{
 	    return m_currIdx > other.m_currIdx;
 	}
 	
-
 	constexpr bool operator>(const PoolDataIterator& other) noexcept
 	{
 	    return m_currIdx < other.m_currIdx;
 	}
 	
-
 	constexpr bool operator<=(const PoolDataIterator& other) noexcept
 	{
 	    return !(other.m_currIdx > m_currIdx);
 	}
-	
 
 	constexpr bool operator>=(const PoolDataIterator& other) noexcept
 	{
 	    return !(other.m_currIdx < m_currIdx);
 	}
+
 private:
 	pooldense_t*     m_dense;
 	difference_type  m_currIdx;
 };
 
 //-Pool
+template<typename allocator_t = std::allocator<EntityType::index_t>>
 class PoolBase
 {
 public:
-	using traits = PoolTraits;
 	using index_type  = EntityType::index_t;
-	using container_t = std::vector<index_t>;
+	using alloc_traits = std::allocator_traits<allocator_t>;
+	using sparse_t = std::vector<typename alloc_traits::pointer, typename alloc_traits::template rebind_alloc<typename alloc_traits::pointer>>;
+	using dense_t  = std::vector<index_type, allocator_t>;
 	using iterator = PoolEntityIterator<container_t>;
 	using const_iterator = iterator;
     using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 public:
-
 	/*! @brief Default constructor. */
 	PoolBase() = default;
 
@@ -313,10 +310,22 @@ public:
 	: m_sparse{std::move(other.m_sparse)}
 	, m_entityDense{std::move(other.m_entityDense)} {}
 
+	/**
+     * @brief Move assignment operator.
+     * @param the other instance to move from
+     */
+	PoolBase& operator=(PoolBase&& other)
+	{
+		releaseSparse();
+		m_sparse = std::move(other.m_sparse);
+		m_entityDense = std::move(other.m_entityDense);
+		return *this;
+	}
+
 	/*! @brief Default destructor. */
 	virtual ~PoolBase()
 	{
-		releasePages();
+		releaseSparse();
 	}
 
 	/**
@@ -353,7 +362,7 @@ public:
 
 	size_t extent() const 
 	{
-		return (m_sparse.size() * traits::sparsePageSize);
+		return (m_sparse.size() * PoolTraits::sparsePageSize);
 	}
 
 	size_t size() const
@@ -387,17 +396,29 @@ public:
 		return end();
 	}
 
+	void reserve(index_type cap)
+	{
+		m_entityDense.reserve(cap);
+	}
+
+	void insert(index_type entt)
+	{
+		//TODO: 19.02.2023: ADD THIS IM TIRED AND LAZY
+	}
+
 protected:
 	index_type& ensureSparseRef(index_type enttIdx)
 	{
-		auto pageidx  = traits::sparsePageIndex(enttIdx);
+		auto pageSize = PoolTraits::sparsePageSize;
+		auto pageidx  = PoolTraits::sparsePageIndex(enttIdx);
 		auto currSize = m_sparse.size();
 		if(!(pageidx < currSize))
 		{
 			m_sparse.resize((pageidx + 1u), nullptr);
 			for(const auto newSize = m_sparse.size(); currSize < newSize; ++currSize)
 			{
-				m_sparse[currSize] = {new container_t{traits::sparsePageSize, EntityType::nullidx}};
+				m_sparse[currSize] = alloc_traits::allocate(m_entityDense.get_allocator(), pageSize);
+            	std::uninitialized_fill(m_sparse[currSize], m_sparse[currSize] + pageSize, EntityType::nullidx);
 			}
 		}
 
@@ -407,38 +428,47 @@ protected:
 	index_type& sparseRef(index_type idx)
 	{
 		assert((idx < extent()) && "Invalid entity");
-		return m_sparse[traits::sparsePageIndex(idx)][traits::sparseOffset(idx)];
+		return m_sparse[PoolTraits::sparsePageIndex(idx)][PoolTraits::sparseOffset(idx)];
 	}
 
 protected:
-	std::vector<container_t*> m_sparse;
-	container_t               m_entityDense;
+	sparse_t m_sparse;
+	dense_t  m_entityDense;
 
 private:
-	void releasePages()
+	void releaseSparse()
 	{
-		for(auto* pageptr : m_sparse)
+		for(auto&& pageptr : m_sparse)
 		{
 			if(pageptr != nullptr)
 			{
-				delete pageptr;
+				std::destroy(pageptr, pageptr + PoolTraits::sparsePageSize);
+                alloc_traits::deallocate(m_entityDense.get_allocator(), pageptr, PoolTraits::sparsePageSize);
+                pageptr = nullptr;
 			}
 		}
 	}
 };
 
-
-template<typename value_t>
-class Pool : public PoolBase
+template<typename value_t, typename allocator_t = std::allocator<value_t>>
+class Pool : public PoolBase<typename std::allocator_traits<allocator_t>::template rebind_alloc<EntityType::index_t>>
 {
+	TODO: 19.02.2023: EDIT THE CODE WITH NEW ITERATOR AND PAGE SYSTEM; SINCE ITS NOW PTR NOT VECTOR
+
 public:
 	using value_type  = value_t;
-	using page_type   = std::vector<value_type>;
-	using container_t = std::vector<page_type*>;
+	using alloc_traits = std::allocator_traits<allocator_t>;
+	static_assert(std::is_same_v<typename alloc_traits::value_type, value_type>, "Invalid value type");
+
+	using page_ptr_t  = typename alloc_traits::pointer;
+	using container_t = std::vector<typename alloc_traits::pointer, typename alloc_traits::template rebind_alloc<typename alloc_traits::pointer>>;
+
 	using iterator = PoolDataIterator<container_t>;
 	using const_iterator = PoolDataIterator<const container_t>;
+
 	using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+    
 	using iterable       = Iterable<PairIterator<PoolBase::iterator, iterator>>;
 	using const_iterable = Iterable<PairIterator<PoolBase::const_iterator, const_iterator>>;
 
@@ -489,12 +519,12 @@ public:
 	 */
 	value_t& get(index_type entt)
 	{
-		return dataDenseRef(PoolBase::indexOf(entt));
+		return dataItemRef(PoolBase::indexOf(entt));
 	}
 
 	const value_t& get(index_type entt) const
 	{
-		return dataDenseRef(PoolBase::indexOf(entt));
+		return dataItemRef(PoolBase::indexOf(entt));
 	}
 
 	iterator begin()
@@ -517,12 +547,17 @@ public:
 		return end();
 	}
 
+	constexpr allocator_t allocator()
+	{
+		return m_dataDense.get_allocator();
+	}
+	
 	void reserve(index_type cap)
 	{
 		if(cap != 0u)
 		{
-			m_entityDense.reserve(cap);
-			reservePages(traits::densePageIndex(cap - 1u) + 1u);
+			PoolBase::reserve(cap);
+			reservePages(PoolTraits::densePageIndex(cap - 1u) + 1u);
 		}
 	}
 
@@ -533,11 +568,14 @@ public:
 		assert(!has(entt) && "Id already exists");
 
 		index_type& entityRef    = ensureSparseRef(entt);
-		page_type&  currDataPage = denseCurrentPage();
+		page_type&  currDataPage = dataCurrentPage();
 
-		const auto denseIdx = m_entityDense.size();
+		auto denseIdx = m_entityDense.size();
+		auto offset = PoolTraits::denseOffset(denseIdx);
+		allocator_t typeAlloc = m_dataDense.get_allocator();
+
 		m_entityDense.emplace_back(entt);
-		currDataPage.emplace_back(std::forward<argtyps>(args)...);
+		alloc_traits::construct(typeAlloc, currDataPage[offset], std::forward<argtyps>(args)...);
 		entityRef = denseIdx;
 	}
 
@@ -547,16 +585,16 @@ public:
 
 		auto& backRef   = sparseRef(m_entityDense.back());
 		auto& erasedRef = sparseRef(entt);
-		auto  backIdx   = (m_entityDense.size() - 1);
+		auto  backIdx   = (m_entityDense.size() - 1u);
 
 		std::swap(m_entityDense.back(),    m_entityDense[erasedRef]);
-		std::swap(dataDenseRef(backIdx), dataDenseRef(erasedRef));
+		std::swap(dataItemRef(backIdx), dataItemRef(erasedRef));
 
 		backRef   = erasedRef;
 		erasedRef = EntityType::nullidx;
 
 		m_entityDense.pop_back();
-		densePageRef(backIdx).pop_back();
+		dataPageRef(backIdx).pop_back(); // TODO: 19.02.2023: FIX THIS ACCORDING TO NEW CHANGES
 		
 	}
 
@@ -567,20 +605,20 @@ public:
 	}
 
 private:
-	value_type& dataDenseRef(index_type idx)
+	value_type& dataItemRef(index_type idx)
 	{
-		assert((idx < (m_dataDense.size() * traits::densePageSize)) && "Invalid entity")
-		return densePageRef(idx)[traits::denseOffset(idx)];
+		assert((idx < (m_dataDense.size() * PoolTraits::densePageSize)) && "Invalid entity")
+		return dataPageRef(idx)[PoolTraits::denseOffset(idx)];
 	}
 
-	page_type& densePageRef(index_type idx)
+	page_type& dataPageRef(index_type idx)
 	{
-		return m_dataDense[traits::densePageIndex(idx)];
+		return m_dataDense[PoolTraits::densePageIndex(idx)];
 	}
 
-	page_type& denseCurrentPage()
+	page_type& dataCurrentPage()
 	{
-		auto pageidx = traits::densePageIndex(m_entityDense.size());
+		auto pageidx = PoolTraits::densePageIndex(m_entityDense.size());
 		if(!(pageidx < m_dataDense.size()))
 		{
 			reservePages((pageidx + 1u));
@@ -591,14 +629,14 @@ private:
 
 	void reservePages(index_type newcap)
 	{
+		auto pageSize = PoolTraits::densePageSize;
 		auto currSize = m_dataDense.size();
 		m_dataDense.resize(newcap, nullptr);
 		for(const auto newSize = m_dataDense.size(); currSize < newSize; ++currSize)
 		{
-			page_type* newPage{new page_type{}};
-			newPage->reserve(traits::densePageSize);
-
-			m_dataDense[currSize] = newPage;
+			//page_type* newPage{new page_type{}};
+			//newPage->reserve(PoolTraits::densePageSize);
+			m_dataDense[currSize] = alloc_traits::allocate(m_dataDense.get_allocator(), pageSize);
 		}
 	}
 

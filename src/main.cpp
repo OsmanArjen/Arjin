@@ -1,22 +1,39 @@
-#include "../include/Pool.hpp"
-#include "iostream"
-int main()
+
+struct Rect
 {
-/*	GameMain game;
+	int x;     int y;
+	int width; int height;
+};
 
-	game.run();*/
+struct Text
+{
+	int textid;
+};
 
-	Pool<int> cpool{10};
-	
-	for(int i : {0,1,2,3,4,5,6,7,8,9})
-		cpool.insert(i, (i*(i+i))/(i+1));
 
-	for(auto [id, data] : cpool.each())
-	{
-		std::cout << id << ":" << data << '\n';
-	}
-
-	return 0;
+void acc(arjin::EntityType entt, Rect& rct, Text&, txt)
+{
+//...
 }
 
+int main()
+{
+	arjin::EntityWorld world{2};
 
+	auto entities = world.create(12);
+
+	for(auto entt : entities)
+	{
+		world.assign<Rect>(entt, 10,10, 10,10);
+	}
+
+	for(int x=0; x < 5; ++x)
+	{
+		world.assign<Text>(x, 0);
+	}
+
+	auto view = world.each<Rect, Text>();
+
+	view.apply(render);
+
+}

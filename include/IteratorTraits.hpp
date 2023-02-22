@@ -60,7 +60,7 @@ class Iterable
 {
 public:
 	using first_iterator  = itfirst_t;
-	using second_iterator = itfirst_t;
+	using second_iterator = itsecond_t;
 
 	constexpr Iterable() = default;
 	constexpr Iterable(itfirst_t first, itsecond_t second)
@@ -90,5 +90,20 @@ private:
 	first_iterator   m_first;
 	second_iterator  m_second;
 };
+
+/*template<class itfirst_t, class itsecond_t = itfirst_t, class filter_t = void>
+class Iterable
+{
+    // This version of the Iterable class has filtering functionality.
+    // The Filter template parameter specifies the type of the filter functor
+    // that will be used to filter the elements of the collection.
+};
+
+template<class itfirst_t, class itsecond_t>
+class Iterable<itfirst_t, itsecond_t, void>
+{
+    // This version of the Iterable class does not have filtering functionality.
+    // The void template parameter indicates that no filter functor will be used.
+};*/
 
 #endif // ITERATOR_TRAITS_HPP
