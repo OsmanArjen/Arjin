@@ -4,15 +4,19 @@
 #include <cstdint>
 #include <type_traits>
 #include <span>
-#include "Pool.hpp"
-#include "View.hpp"
-#include "TypeInfo.hpp"
+#include "pool.hpp"
+#include "view.hpp"
+#include "entity.hpp"
 
 namespace arjen
 {
+
+// TODO: 23.02.2023: think about it find whattodo
+template<typename allocator_t>
 class EntityWorld
 {
 public:
+	using alloc_traits = std::allocator_traits<allocator_t>;
 	using size_type   = std::size_t;
 	using index_type  = EntityType::index_t;
 public:
@@ -24,48 +28,48 @@ public:
 	EntityType create()
 	{
 	    index_type deadIdx = m_aliveCount++;
-	    if(deadIdx < m_entityDense.size())
+	    if(deadIdx < m_tableDense.size())
 	    {
-	        return m_entityDense[deadIdx];
+	        return m_tableDense[deadIdx];
 	    }
 	    else
 	    {
-	        m_entityDense.emplace_back(m_entitySparse.size(), 0);
-	        m_entitySparse.push_back(m_entityDense.size() - 1);
-	        return m_entityDense.back();
+	        m_tableDense.emplace_back(m_tableSparse.size(), 0);
+	        m_tableSparse.push_back(m_tableDense.size() - 1);
+	        return m_tableDense.back();
 	    }
 	}
 
 	const std::span<EntityType> create(EntityType::index_t newcount)
 	{
-	    if(newcount == 0u) return {m_entityDense.begin(), 0u};
-	    index_type entityCount = m_entityDense.size();
+	    if(newcount == 0u) return {m_tableDense.begin(), 0u};
+	    index_type entityCount = m_tableDense.size();
 	    index_type currAlive = m_aliveCount;
 	    index_type toCreate = newcount - (entityCount - currAlive);
 
 	    m_aliveCount += newcount;
 		for (size_type i = 0u; i < toCreate; ++i)
 	    {
-	        m_entityDense.emplace_back(m_entitySparse.size(), 0);
-        	m_entitySparse.push_back(m_entityDense.size() - 1);
+	        m_tableDense.emplace_back(m_tableSparse.size(), 0);
+        	m_tableSparse.push_back(m_tableDense.size() - 1);
 	    } 
 
-	    return {m_entityDense.begin() + currAlive, newcount}; 
+	    return {m_tableDense.begin() + currAlive, newcount}; 
 	}
 
 	void reserve(size_type value)
 	{
-	    m_entitySparse.reserve(value);
-	    m_entityDense.reserve(value);
+	    m_tableSparse.reserve(value);
+	    m_tableDense.reserve(value);
 	}
 
 	void release(const EntityType& enttId)
 	{
 	    assert(isValid(enttId) && "Invalid entity");
 
-	    index_type denseIdx  = m_entitySparse[enttId.index];
+	    index_type denseIdx  = m_tableSparse[enttId.index];
 	    index_type currAlive = m_aliveCount;
-	    m_entityDense[denseIdx].version++;
+	    m_tableDense[denseIdx].version++;
 
 	    if (denseIdx == (currAlive - 1u))
 	    {
@@ -73,20 +77,20 @@ public:
 	    }
 	    else if (denseIdx < currAlive)
 	    {
-	        EntityType last = m_entityDense[currAlive - 1u];
-	        std::swap(m_entityDense[currAlive - 1u], m_entityDense[denseIdx]);
-	        std::swap(m_entitySparse[last.index],    m_entitySparse[enttId.index]);
+	        EntityType last = m_tableDense[currAlive - 1u];
+	        std::swap(m_tableDense[currAlive - 1u], m_tableDense[denseIdx]);
+	        std::swap(m_tableSparse[last.index],    m_tableSparse[enttId.index]);
 	        m_aliveCount--;
 	    }
 	}
 
 	void isValid(const EntityType& enttId)
 	{
-	    if ((enttId.index < 0u) || (enttId.index >= m_entitySparse.size()))
+	    if ((enttId.index < 0u) || (enttId.index >= m_tableSparse.size()))
 	        return false;
 
-	    index_type sparseIdx = m_entitySparse[enttId.index];
-	    EntityType checkId   = m_entityDense[sparseIdx];
+	    index_type sparseIdx = m_tableSparse[enttId.index];
+	    EntityType checkId   = m_tableDense[sparseIdx];
 	 
 	    return (enttId == checkId); 
 	}
@@ -121,6 +125,8 @@ public:
 	}
 
 private:
+	using CompTypeId = std::size_t;
+
 	template<typename comptype>
 	auto& poolEnsure()
 	{
@@ -131,23 +137,27 @@ private:
 			m_compPools.insert({id, {new Pool<comptype>()}});
 		}
 
-		return static_cast<Pool<comptype>>(*m_compPools[id]);
+		return static_cast<Pool<comptype>&>(*m_compPools[id]);
 	}
-	
-	EntityType newEntity()
-	{
-	    EntityType newId{m_entityDense.size(), 0u};
-	    
-	    m_entitySparse.emplace_back(newId.index);
-	    m_entityDense.emplace_back(newId);
 
-	    return newId;
+	template<class comptype>
+	CompTypeId getComponentId()
+	{
+		// Static & const: to return the same id whenever same type is given
+		static const CompTypeId uniqueId{newComponentId()}; 
+		return uniqueId;
+	}
+
+	CompTypeId newComponentId()
+	{
+		static CompTypeId idCount{0u};
+		return idCount++;
 	}
 
 private:
 	index_type m_aliveCount;
-	std::vector<index_type> m_entitySparse;	 
-	std::vector<EntityType> m_entityDense;	 
+	std::vector<index_type> m_tableSparse;	 
+	std::vector<EntityType> m_tableDense;	 
 	std::unordered_map<CompTypeId, std::unique_ptr<PoolBase>> m_compPools;
 	
 }; 

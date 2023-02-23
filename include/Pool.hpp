@@ -1,20 +1,18 @@
 #ifndef POOL_HPP
 #define POOL_HPP
-#include "IteratorTraits.hpp"
-#include "TypeInfo.hpp"
-#include <type_traits>
 #include <utility>
 #include <algorithm>
 #include <memory>
-#include <cassert>
-#include <vector>
 #include <cmath>
+#include <type_traits>
+#include <vector>
+#include <cassert>
+#include "iterator_traits.hpp"
+#include "entity.hpp"
 
 // they've been left as a syntax error for you to take care of them
 TODO: 19.02.2023: Change insert functionality and add it to the poolbase some part of it so that people can use PoolBase when they only wanna access the sparse and enttdense
 TODO: 18.02.2023: Fully add the allocator thing and also you figured it out it was to allocate new pages whenever we need and seperate them
-TODO: 16.02.2023: Figure out why we use pointers for vectors in PoolBase for example and fix it
-TODO: 16.02.2023: Check if you implemented the new reversed version of the iterators
 
 // TODO: FIX THE ENTITYWORLD CLASS THE RESERVE FUNCTION AND ENTITYPOOL FUNCTIONALITY// check if this is still relevant
 // TODO: FIX VIEW CLASS ACCORDING TO NEW POOLBASE STRUCTURE // check if this is still relevant
@@ -428,7 +426,9 @@ protected:
 	index_type& sparseRef(index_type idx)
 	{
 		assert((idx < extent()) && "Invalid entity");
-		return m_sparse[PoolTraits::sparsePageIndex(idx)][PoolTraits::sparseOffset(idx)];
+		auto& item = m_sparse[PoolTraits::sparsePageIndex(idx)][PoolTraits::sparseOffset(idx)];
+		assert((item == EntityType::nullidx) && "Invalid entity");
+		return item;
 	}
 
 protected:

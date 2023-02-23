@@ -5,7 +5,7 @@
 #include <utility>
 #include <algorithm>
 #include <type_traits>
-#include "TypeTraits.hpp"
+#include "type_traits.hpp"
 
 namespace arjin
 {
