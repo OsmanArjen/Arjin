@@ -4,7 +4,7 @@
 #include <type_traits>
 #include <utility>
 
-template<class itfirst_t, class itsecond_t>
+template<class itfirst_t, class itsecond_t = itfirst_t>
 class PairIterator
 {
 public:
@@ -16,7 +16,7 @@ public:
 	using iterator_category = std::input_iterator_tag;
 	using iterator_pair     = std::pair<itfirst_t, itsecond_t>;
 public:
-	constexpr PairIterator() = default;
+	constexpr PairIterator() = delete;
 	constexpr PairIterator(itfirst_t first, itsecond_t second)
 		: m_pair{first, second} {}
 

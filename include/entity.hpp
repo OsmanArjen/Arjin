@@ -1,6 +1,7 @@
-#ifndef TYPE_INFO_HPP
-#define TYPE_INFO_HPP
+#ifndef ENTITY_HPP
+#define ENTITY_HPP
 #include <cstdint>
+#include <exception>
 #include <limits>
 
 namespace arjin
@@ -18,6 +19,11 @@ struct EntityType
   inline static const index_t nullidx{std::numeric_limits<index_t>::max()};
 };
 
+constexpr bool operator==(const EntityType &lhs, const EntityType &rhs) noexcept
+{
+  return (lhs.index == rhs.index) && (lhs.version == rhs.version);
 }
 
-#endif // TYPE_INFO_HPP
+}
+
+#endif // ENTITY_HPP

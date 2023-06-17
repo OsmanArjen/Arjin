@@ -2,16 +2,22 @@
 #define ENTITY_WORLD_HPP
 #include <memory>
 #include <cstdint>
+#include <tuple>
 #include <type_traits>
 #include <span>
+#include <unordered_map>
+
 #include "pool.hpp"
+#include "type_traits.hpp"
 #include "view.hpp"
 #include "entity.hpp"
 
-namespace arjen
+namespace arjin
 {
 
-// TODO: 23.02.2023: think about it find whattodo
+// / ////// /// //////// //// /////
+TODO: 15.06.2023: LEARN WHY WE DIDNT USE THE VERSIONS
+// / ///// /// ////////// // //////
 template<typename allocator_t>
 class EntityWorld
 {
@@ -84,7 +90,7 @@ public:
 	    }
 	}
 
-	void isValid(const EntityType& enttId)
+	bool isValid(const EntityType& enttId)
 	{
 	    if ((enttId.index < 0u) || (enttId.index >= m_tableSparse.size()))
 	        return false;
@@ -117,11 +123,13 @@ public:
 		return poolEnsure<comptype>().has(enttId.index);
 	}
 
-	template<typename... comptypes>
-	View<Pool<comptypes>...> each()
+	template<typename... get_ts, typename... excluded_ts>
+	View<typeList<Pool<get_ts>>..., typeList<Pool<excluded_ts>>...> 
+	each(typeList<excluded_ts...> = exclude<>)
 	{
-		static_assert(sizeof...(comptypes) > 0, "Cannot view without component types");
-		return {poolEnsure<std::remove_const_t(comptypes)>()...};
+		static_assert(sizeof...(get_ts) > 0, "Cannot view without component types");
+		return {poolEnsure<std::remove_const_t<get_ts>()>()..., 
+		        poolEnsure<std::remove_const_t<excluded_ts>()>()...};
 	}
 
 private:
@@ -132,7 +140,7 @@ private:
 	{
 		const auto id = getComponentId<comptype>();
 
-		if(!(m_compPools.contains(id)))
+		if(!(m_compPools.count(id)))
 		{
 			m_compPools.insert({id, {new Pool<comptype>()}});
 		}
@@ -143,7 +151,6 @@ private:
 	template<class comptype>
 	CompTypeId getComponentId()
 	{
-		// Static & const: to return the same id whenever same type is given
 		static const CompTypeId uniqueId{newComponentId()}; 
 		return uniqueId;
 	}
@@ -158,7 +165,7 @@ private:
 	index_type m_aliveCount;
 	std::vector<index_type> m_tableSparse;	 
 	std::vector<EntityType> m_tableDense;	 
-	std::unordered_map<CompTypeId, std::unique_ptr<PoolBase>> m_compPools;
+	std::unordered_map<CompTypeId, std::unique_ptr<PoolBase<>>> m_compPools;
 	
 }; 
 }
