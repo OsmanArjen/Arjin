@@ -12,12 +12,13 @@
 #include "view.hpp"
 #include "entity.hpp"
 
+// TODO: 6.07.2023: Find a way to simplfy the interface of allocators and also i guess we forgot that we need to initiate them with a type
+// TODO: 6.07.2023: Make the entity type templated and use bitwise
+// TODO: 6.07.2023: Create an entity namespace and define the bitwise operators for version and index
+
 namespace arjin
 {
 
-// / ////// /// //////// //// /////
-TODO: 15.06.2023: LEARN WHY WE DIDNT USE THE VERSIONS
-// / ///// /// ////////// // //////
 template<typename allocator_t>
 class EntityWorld
 {
@@ -71,7 +72,7 @@ public:
 
 	void release(const EntityType& enttId)
 	{
-	    assert(isValid(enttId) && "Invalid entity");
+	    assert(valid(enttId) && "Invalid entity");
 
 	    index_type denseIdx  = m_tableSparse[enttId.index];
 	    index_type currAlive = m_aliveCount;
@@ -90,21 +91,19 @@ public:
 	    }
 	}
 
-	bool isValid(const EntityType& enttId)
+	bool valid(const EntityType& enttId)
 	{
 	    if ((enttId.index < 0u) || (enttId.index >= m_tableSparse.size()))
 	        return false;
 
-	    index_type sparseIdx = m_tableSparse[enttId.index];
-	    EntityType checkId   = m_tableDense[sparseIdx];
-	 
-	    return (enttId == checkId); 
+	    EntityType checkId = m_tableDense[m_tableSparse[enttId.index]];
+	    return (enttId.version == checkId.version); 
 	}
 
 	template<typename comptype, typename ...argtyps>
 	void assign(const EntityType& enttId, argtyps&& ...args)
 	{
-		assert(isValid(enttId) && "Invalid entity");
+		assert(valid(enttId) && "Invalid entity");
 		auto& pool = poolEnsure<comptype>();
 		pool.insert(enttId.index, std::forward<argtyps>(args)...);
 	}
@@ -112,7 +111,7 @@ public:
 	template<typename comptype>
 	void erase(const EntityType& enttId)
 	{
-		assert(isValid(enttId) && "Invalid entity");
+		assert(valid(enttId) && "Invalid entity");
 		auto& pool = poolEnsure<comptype>();
 		pool.erase(enttId.index);
 	}

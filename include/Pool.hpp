@@ -22,8 +22,8 @@ namespace arjin
 constexpr unsigned int sparseEnttShift{12};
 constexpr unsigned int denseEnttShift{12};
 
-constexpr unsigned int sparsePageSize{2 ** sparseEnttShift};
-constexpr unsigned int densePageSize{2 ** denseEnttShift};
+constexpr unsigned int sparsePageSize{std::pow(2,sparseEnttShift)};
+constexpr unsigned int densePageSize{std::pow(2,denseEnttShift)};
 
 constexpr EntityType::index_t sparsePageIndex(EntityType::index_t enttIdx)
 {
@@ -44,7 +44,6 @@ constexpr EntityType::index_t denseOffset(EntityType::index_t enttIdx)
 {
 	return (enttIdx & (densePageSize - 1));
 }
-
 
 template<typename pooldense_t>
 class PoolEntityIterator
@@ -275,8 +274,8 @@ public:
 	}
 
 private:
-	pooldense_t*     m_dense;
-	difference_type  m_currIdx;
+	pooldense_t* m_dense;
+	difference_type m_currIdx;
 };
 
 //-Pool
@@ -286,37 +285,20 @@ class PoolBase
 public:
 	using index_type  = EntityType::index_t;
 	using alloc_traits = std::allocator_traits<allocator_t>;
+
 	using sparse_t = std::vector<typename alloc_traits::pointer, typename alloc_traits::template rebind_alloc<typename alloc_traits::pointer>>;
 	using dense_t  = std::vector<index_type, allocator_t>;
+
 	using iterator = PoolEntityIterator<dense_t>;
 	using const_iterator = iterator;
     using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+	
 public:
-	/*! @brief Default constructor. */
+	/*! @brief constructor. */
 	PoolBase() = default;
 
-	/**
-     * @brief Move constructor.
-     * @param the other instance to move from
-     */
-	PoolBase(PoolBase&& other)
-	: m_sparse{std::move(other.m_sparse)}
-	, m_entityDense{std::move(other.m_entityDense)} {}
-
-	/**
-     * @brief Move assignment operator.
-     * @param the other instance to move from
-     */
-	PoolBase& operator=(PoolBase&& other)
-	{
-		releaseSparse();
-		m_sparse = std::move(other.m_sparse);
-		m_entityDense = std::move(other.m_entityDense);
-		return *this;
-	}
-
-	/*! @brief Default destructor. */
+	/*! @brief destructor. */
 	virtual ~PoolBase()
 	{
 		releaseSparse();
@@ -441,8 +423,6 @@ private:
 template<typename value_t, typename allocator_t = std::allocator<value_t>>
 class Pool : public PoolBase<typename std::allocator_traits<allocator_t>::template rebind_alloc<EntityType::index_t>>
 {
-	//TODO: 19.02.2023: EDIT THE CODE WITH NEW ITERATOR AND PAGE SYSTEM; SINCE ITS NOW PTR NOT VECTOR
-
 public:
 	using index_type  = EntityType::index_t;
 	using value_type  = value_t;
@@ -471,7 +451,8 @@ public:
      * @param other to move from
      */
 	Pool(Pool&& other)
-	: PoolBase(std::move(other))
+	: m_sparse{std::move(other.m_sparse)}
+	, m_entityDense{std::move(other.m_entityDense)} 
 	, m_dataDense(std::move(other.m_dataDense)) {}
 
 	/**
@@ -551,7 +532,6 @@ public:
 		}
 	}
 
-	//-
 	template<typename ...argtyps>
 	void insert(index_type entt, argtyps&& ...args)
 	{
@@ -571,13 +551,11 @@ public:
 
 	void erase(index_type entt)
 	{
-		// TODO: CHECK IF THIS CODE STILL WORKS OR THE SYNTAX IS FLAWLESS
 		assert(has(entt) && "Id doesn't exist");
-
-		auto backIdx = (m_entityDense.size() - 1u);
 		index_type& sparseBackRef   = sparseRef(m_entityDense.back());
 		index_type& sparseErasedRef = sparseRef(entt);
 
+		auto backIdx = (m_entityDense.size() - 1u);
 		auto& dataBackRef   = dataItemRef(backIdx);
 		auto& dataErasedRef = dataItemRef(sparseErasedRef);
 
@@ -628,21 +606,20 @@ private:
 		m_dataDense.resize(newcap, nullptr);
 		for(const auto newSize = m_dataDense.size(); currSize < newSize; ++currSize)
 		{
-			//page_type* newPage{new page_type{}};
-			//newPage->reserve(densePageSize);
 			m_dataDense[currSize] = alloc_traits::allocate(m_dataDense.get_allocator(), pageSize);
 			std::uninitialized_fill(m_dataDense[currSize], m_dataDense[currSize] + pageSize, EntityType::nullidx);
 		}
 	}
 
-	void releasePages()
+	void releaseDataDense()
 	{
 		for(auto&& pageptr : m_dataDense)
 		{
 			if(pageptr != nullptr)
 			{
-				delete pageptr;
-				pageptr = nullptr;
+				std::destroy(pageptr, pageptr + densePageSize);
+                alloc_traits::deallocate(m_entityDense.get_allocator(), pageptr, densePageSize);
+                pageptr = nullptr;
 			}
 		}
 	}

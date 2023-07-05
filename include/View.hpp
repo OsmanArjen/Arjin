@@ -176,7 +176,6 @@ public:
 	: m_included{&included...} 
 	, m_excluded{&excluded...} {update();}
 
-	// TODO: 22.02.2023: wtf bro fix excluding
 	entity_iterator begin()
 	{
 		return {m_minPool->begin(), m_minPool->end(), poolTupleToArray(m_included), poolTupleToArray(m_excluded)};
@@ -189,16 +188,14 @@ public:
 
 	Iterable<pool_iterator<include_ts...>> get()
 	{
-		return {{m_minPool->begin(), m_included},
-		        {m_minPool->end(),   m_included}};
+		return {{begin(), m_included}, {end(),   m_included}};
 	}
 
 	template<typename... types>
 	Iterable<pool_iterator<types...>> get()
 	{
 		auto typePools = std::make_tuple(pool<types>()...);
-		return {{m_minPool->begin(), typePools}, 
-		        {m_minPool->end(),   typePools}};
+		return {{begin(), typePools}, {end(),   typePools}};
 	}
 
 	template<typename... type>
@@ -272,6 +269,6 @@ private:
 
 template<typename... ts>
 inline constexpr typeList<ts...> exclude{};
- 
+
 }
 #endif // VIEW_HPP
